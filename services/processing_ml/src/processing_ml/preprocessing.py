@@ -1,6 +1,6 @@
 import pandas as pd
 
-from .features import add_occupation_features
+from .features import add_occupation_features, add_engineered_features
 from .validation import validate_building_split, validate_energy_mix
 
 NUMERIC_COLUMNS = [
@@ -50,5 +50,6 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = cast_to_numeric(df)
     df = add_validation_flags(df)
     df = add_occupation_features(df)
+    df = add_engineered_features(df)
     df.reset_index(drop=True, inplace=True)
     return df
