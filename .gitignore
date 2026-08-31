@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+
+#Data
+/data
+
+#Notes
+/dev_phases.md
+/anomaly_detection_mlops_project_guide.md
