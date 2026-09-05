@@ -1,0 +1,361 @@
+from collections.abc import Mapping
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from .features import BUILDING_SPLIT_COLUMNS, ENERGY_MIX_COLUMNS
+from .validation import validate_building_split, validate_energy_mix
+
+ANOMALY_TYPES = (
+    "contextual",
+    "correlational",
+    "structural",
+    "energy_mix",
+    "combination",
+)
+
+DEFAULT_ANOMALY_DISTRIBUTION = {
+    "contextual": 0.20,
+    "correlational": 0.25,
+    "structural": 0.20,
+    "energy_mix": 0.25,
+    "combination": 0.10,
+}
+
+CONTEXT_COLUMNS = (
+    "categorie_activite_majoritaire_efa",
+    "sous_categorie_activite_majoritaire_efa",
+    "cas_assujettissement_efa",
+)
+RATIO_COLUMNS = (
+    "ratio_de_consommation_ajustee_du_climat_kwh_par_m2",
+    "ratio_de_consommation_brut_kwh_par_m2",
+)
+GROUND_TRUTH_COLUMNS = (
+    "is_anomaly",
+    "anomaly_type",
+    "anomaly_severity",
+)
+
+
+def _normalise_percentages(values: pd.Series) -> np.ndarray:
+    numeric = values.astype(float).fillna(0).clip(lower=0)
+    total = numeric.sum()
+    if total <= 0:
+        normalised = np.zeros(len(numeric), dtype=float)
+        normalised[0] = 100.0
+        return normalised
+    return (numeric * (100.0 / total)).to_numpy()
+
+
+def _valid_rows(df: pd.DataFrame, columns: list[str]) -> np.ndarray:
+    values = df[columns]
+    return (
+        values.notna().all(axis=1)
+        & values.ge(0).all(axis=1)
+        & np.isclose(values.sum(axis=1), 100.0, atol=0.1)
+    ).to_numpy()
+
+
+def _different_context(base: pd.DataFrame, target: int, candidates: np.ndarray) -> np.ndarray:
+    if not all(column in base.columns for column in CONTEXT_COLUMNS):
+        return candidates
+    target_context = tuple(base.loc[target, CONTEXT_COLUMNS])
+    mask = np.array(
+        [tuple(base.loc[index, CONTEXT_COLUMNS]) != target_context for index in candidates]
+    )
+    return candidates[mask]
+
+
+def _choose_donor(
+    rng: np.random.Generator,
+    base: pd.DataFrame,
+    target: int,
+    candidates: np.ndarray,
+) -> int:
+    candidates = candidates[candidates != target]
+    context_candidates = _different_context(base, target, candidates)
+    if len(context_candidates):
+        candidates = context_candidates
+    if len(candidates) == 0:
+        raise ValueError(f"Could not find a valid donor for row {target}.")
+    return int(rng.choice(candidates))
+
+
+def _copy_values(
+    result: pd.DataFrame,
+    target: int,
+    donor: int,
+    columns: tuple[str, ...],
+) -> None:
+    result.loc[target, list(columns)] = result.loc[donor, list(columns)].to_numpy()
+
+
+def _allocate_counts(total: int, distribution: Mapping[str, float]) -> dict[str, int]:
+    names = list(distribution)
+    unknown = set(names) - set(ANOMALY_TYPES)
+    if unknown:
+        raise ValueError(f"Unsupported anomaly types: {sorted(unknown)}")
+
+    weights = np.asarray([distribution[name] for name in names], dtype=float)
+    if (
+        len(names) == 0
+        or not np.isfinite(weights).all()
+        or (weights < 0).any()
+        or not np.isclose(weights.sum(), 1.0)
+    ):
+        raise ValueError("Anomaly distribution must be non-negative and sum to 1.")
+
+    raw_counts = weights * total
+    counts = np.floor(raw_counts).astype(int)
+    remainder = total - int(counts.sum())
+    if remainder:
+        for index in np.argsort(-(raw_counts - counts))[:remainder]:
+            counts[index] += 1
+    return dict(zip(names, counts, strict=True))
+
+
+def _inject_contextual(
+    result: pd.DataFrame,
+    base: pd.DataFrame,
+    target: int,
+    rng: np.random.Generator,
+    valid_ratios: np.ndarray,
+) -> None:
+    ratios = base.loc[valid_ratios, RATIO_COLUMNS[0]].sort_values()
+    tail_size = max(1, len(ratios) // 10)
+    candidates = ratios.iloc[np.r_[0:tail_size, -tail_size:]].index.to_numpy()
+    donor = _choose_donor(rng, base, target, candidates)
+    _copy_values(result, target, donor, RATIO_COLUMNS)
+
+
+def _inject_correlational(
+    result: pd.DataFrame,
+    base: pd.DataFrame,
+    target: int,
+    rng: np.random.Generator,
+    valid_energy: np.ndarray,
+) -> None:
+    donor = _choose_donor(rng, base, target, np.flatnonzero(valid_energy))
+    result.loc[target, list(ENERGY_MIX_COLUMNS)] = _normalise_percentages(
+        base.loc[donor, list(ENERGY_MIX_COLUMNS)]
+    )
+
+
+def _inject_structural(
+    result: pd.DataFrame,
+    base: pd.DataFrame,
+    target: int,
+    rng: np.random.Generator,
+    valid_splits: np.ndarray,
+) -> None:
+    opposite = valid_splits & (
+        base["is_mono_occupation"].to_numpy()
+        != bool(base.loc[target, "is_mono_occupation"])
+    )
+    donor = _choose_donor(rng, base, target, np.flatnonzero(opposite))
+    result.loc[target, list(BUILDING_SPLIT_COLUMNS)] = _normalise_percentages(
+        base.loc[donor, list(BUILDING_SPLIT_COLUMNS)]
+    )
+
+
+def _inject_energy_mix(
+    result: pd.DataFrame,
+    base: pd.DataFrame,
+    target: int,
+    rng: np.random.Generator,
+    valid_energy: np.ndarray,
+) -> None:
+    donor = _choose_donor(rng, base, target, np.flatnonzero(valid_energy))
+    result.loc[target, list(ENERGY_MIX_COLUMNS)] = _normalise_percentages(
+        base.loc[donor, list(ENERGY_MIX_COLUMNS)]
+    )
+
+
+def _inject_combination(
+    result: pd.DataFrame,
+    base: pd.DataFrame,
+    target: int,
+    rng: np.random.Generator,
+    valid_energy: np.ndarray,
+    valid_splits: np.ndarray,
+    valid_ratios: np.ndarray,
+) -> None:
+    _inject_contextual(result, base, target, rng, valid_ratios)
+    _inject_energy_mix(result, base, target, rng, valid_energy)
+    _inject_structural(result, base, target, rng, valid_splits)
+
+
+def _recalculate_derived_columns(result: pd.DataFrame) -> pd.DataFrame:
+    result = result.copy()
+    result["sum_energy_mix_percent"] = result[ENERGY_MIX_COLUMNS].sum(axis=1)
+    result["is_valid_energy_mix"] = validate_energy_mix(result)
+    result["sum_building_split_percent"] = result[BUILDING_SPLIT_COLUMNS].sum(axis=1)
+    result["is_valid_building_split"] = validate_building_split(result)
+    result["delta_climat_kwh_m2"] = (
+        result[RATIO_COLUMNS[0]] - result[RATIO_COLUMNS[1]]
+    )
+    return result
+
+
+def validate_injected_dataset(
+    experiment_df: pd.DataFrame,
+    clean_df: pd.DataFrame | None = None,
+) -> None:
+    required = set(GROUND_TRUTH_COLUMNS) | {
+        "source_row_id",
+        *ENERGY_MIX_COLUMNS,
+        *BUILDING_SPLIT_COLUMNS,
+        *RATIO_COLUMNS,
+        "sum_energy_mix_percent",
+        "is_valid_energy_mix",
+        "sum_building_split_percent",
+        "is_valid_building_split",
+        "delta_climat_kwh_m2",
+    }
+    missing = required - set(experiment_df.columns)
+    if missing:
+        raise ValueError(f"Experiment dataset is missing columns: {sorted(missing)}")
+    if experiment_df["source_row_id"].isna().any() or not experiment_df["source_row_id"].is_unique:
+        raise ValueError("source_row_id must be present and unique.")
+
+    anomalies = experiment_df["is_anomaly"].astype(bool)
+    if not experiment_df.loc[anomalies, "anomaly_type"].isin(ANOMALY_TYPES).all():
+        raise ValueError("Every anomaly must have a supported anomaly_type.")
+    if not (experiment_df.loc[~anomalies, "anomaly_type"] == "none").all():
+        raise ValueError("Clean rows must have anomaly_type='none'.")
+    if not experiment_df.loc[anomalies, "is_valid_energy_mix"].all():
+        raise ValueError("Injected anomalies must preserve energy-mix validity.")
+    if not experiment_df.loc[anomalies, "is_valid_building_split"].all():
+        raise ValueError("Injected anomalies must preserve building-split validity.")
+
+    expected = _recalculate_derived_columns(experiment_df)
+    for column in (
+        "sum_energy_mix_percent",
+        "is_valid_energy_mix",
+        "sum_building_split_percent",
+        "is_valid_building_split",
+        "delta_climat_kwh_m2",
+    ):
+        if not experiment_df[column].equals(expected[column]):
+            raise ValueError(f"Derived column is inconsistent: {column}")
+
+    if clean_df is not None:
+        if set(experiment_df["source_row_id"]) != set(clean_df["source_row_id"]):
+            raise ValueError("Experiment provenance does not match the clean dataset.")
+        clean_by_source = clean_df.set_index("source_row_id")
+        comparable = [
+            column
+            for column in clean_df.columns
+            if column not in set(GROUND_TRUTH_COLUMNS)
+        ]
+        mutated = experiment_df.loc[anomalies].set_index("source_row_id")[comparable]
+        original = clean_by_source.loc[mutated.index, comparable]
+        differences = mutated.reset_index(drop=True).compare(
+            original.reset_index(drop=True)
+        )
+        changed_rows = differences.index.unique()
+        if len(changed_rows) != len(mutated):
+            raise ValueError("Every anomaly must differ from its clean source row.")
+
+
+def inject_anomalies(
+    clean_df: pd.DataFrame,
+    anomaly_rate: float = 0.05,
+    random_seed: int = 42,
+    anomaly_type_distribution: Mapping[str, float] | None = None,
+) -> pd.DataFrame:
+    if not 0 <= anomaly_rate <= 1:
+        raise ValueError("anomaly_rate must be between 0 and 1.")
+    if len(clean_df) < 2 and anomaly_rate:
+        raise ValueError("At least two rows are required to inject anomalies.")
+    if "source_row_id" not in clean_df.columns:
+        clean_df = clean_df.copy()
+        clean_df.insert(0, "source_row_id", pd.Series(clean_df.index, dtype="int64"))
+
+    required = set(ENERGY_MIX_COLUMNS) | set(BUILDING_SPLIT_COLUMNS) | set(RATIO_COLUMNS)
+    required.add("is_mono_occupation")
+    missing = required - set(clean_df.columns)
+    if missing:
+        raise ValueError(f"Clean dataset is missing columns: {sorted(missing)}")
+
+    base = clean_df.copy(deep=True)
+    result = base.copy(deep=True)
+    result["is_anomaly"] = False
+    result["anomaly_type"] = "none"
+    result["anomaly_severity"] = "none"
+
+    anomaly_count = int(round(len(result) * anomaly_rate))
+    distribution = anomaly_type_distribution or DEFAULT_ANOMALY_DISTRIBUTION
+    counts = _allocate_counts(anomaly_count, distribution)
+    rng = np.random.default_rng(random_seed)
+    targets = rng.choice(len(result), size=anomaly_count, replace=False)
+
+    valid_energy = _valid_rows(base, list(ENERGY_MIX_COLUMNS))
+    valid_splits = _valid_rows(base, list(BUILDING_SPLIT_COLUMNS))
+    valid_ratios = base[list(RATIO_COLUMNS)].notna().all(axis=1).to_numpy()
+    injectors = {
+        "contextual": _inject_contextual,
+        "correlational": _inject_correlational,
+        "structural": _inject_structural,
+        "energy_mix": _inject_energy_mix,
+        "combination": _inject_combination,
+    }
+    severity = {
+        "contextual": "high",
+        "correlational": "medium",
+        "structural": "medium",
+        "energy_mix": "high",
+        "combination": "high",
+    }
+
+    offset = 0
+    for anomaly_type, count in counts.items():
+        injector = injectors[anomaly_type]
+        for target in targets[offset : offset + count]:
+            target = int(target)
+            if anomaly_type in {"contextual"}:
+                injector(result, base, target, rng, valid_ratios)
+            elif anomaly_type in {"correlational", "energy_mix"}:
+                injector(result, base, target, rng, valid_energy)
+            elif anomaly_type == "structural":
+                injector(result, base, target, rng, valid_splits)
+            else:
+                injector(
+                    result,
+                    base,
+                    target,
+                    rng,
+                    valid_energy,
+                    valid_splits,
+                    valid_ratios,
+                )
+            result.loc[target, "is_anomaly"] = True
+            result.loc[target, "anomaly_type"] = anomaly_type
+            result.loc[target, "anomaly_severity"] = severity[anomaly_type]
+        offset += count
+
+    result = _recalculate_derived_columns(result).reset_index(drop=True)
+    validate_injected_dataset(result, base)
+    return result
+
+
+def create_experiment_dataset(
+    clean_path: str | Path,
+    experiment_path: str | Path,
+    anomaly_rate: float = 0.05,
+    random_seed: int = 42,
+    anomaly_type_distribution: Mapping[str, float] | None = None,
+) -> pd.DataFrame:
+    clean_df = pd.read_parquet(clean_path)
+    experiment_df = inject_anomalies(
+        clean_df,
+        anomaly_rate=anomaly_rate,
+        random_seed=random_seed,
+        anomaly_type_distribution=anomaly_type_distribution,
+    )
+    output_path = Path(experiment_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    experiment_df.to_parquet(output_path, index=False)
+    return experiment_df

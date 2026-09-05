@@ -21,6 +21,22 @@ BUILDING_SPLIT_COLUMNS = [
     "consommation_repartie_pct",
 ]
 
+FEATURE_COLUMNS = [
+    "annee_de_consommation",
+    "cas_assujettissement_efa",
+    "categorie_activite_majoritaire_efa",
+    "sous_categorie_activite_majoritaire_efa",
+    "nombre_de_categories_activite_distinctes",
+    "nombre_de_sous_categories_activite_distinctes",
+    "ratio_de_consommation_ajustee_du_climat_kwh_par_m2",
+    "ratio_de_consommation_brut_kwh_par_m2",
+    "consommation_individuelle_pct",
+    "consommation_espaces_communs_pct",
+    "consommation_repartie_pct",
+    *ENERGY_MIX_COLUMNS,
+    "is_mono_occupation",
+]
+
 
 def add_occupation_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()

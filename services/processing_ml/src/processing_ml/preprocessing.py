@@ -21,6 +21,8 @@ NUMERIC_COLUMNS = [
     "reseau_de_chaleur_pct",
     "reseau_de_froid_pct",
     "gazole_non_routier_pct",
+    "nombre_de_categories_activite_distinctes",
+    "nombre_de_sous_categories_activite_distinctes",
 ]
 
 

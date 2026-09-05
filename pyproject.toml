@@ -14,3 +14,8 @@ members = [
   "services/*",
 ]
 
+[dependency-groups]
+dev = [
+    "ipython>=9.17.1",
+]
+

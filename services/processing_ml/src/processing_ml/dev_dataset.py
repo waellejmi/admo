@@ -1,13 +1,13 @@
 import pandas as pd
 
-from .preprocessing import load_data, preprocess
+from .anomaly_injection import create_experiment_dataset
+from .ingestion import ingest_csv_to_parquet, load_processed_parquet
 
 
 def create_dev_dataset(
-    file_path: str, n_rows: int = 100000, seed: int = 42
+    processed_path: str, n_rows: int = 100000, seed: int = 42
 ) -> pd.DataFrame:
-    df = load_data(file_path)
-    df = preprocess(df)
+    df = load_processed_parquet(processed_path)
 
     sample_size = min(n_rows, len(df))
     df = df.sample(n=sample_size, random_state=seed)
@@ -17,5 +17,15 @@ def create_dev_dataset(
 
 
 if __name__ == "__main__":
-    df = create_dev_dataset("data/OPERAT03_RATIO_CONSO_AJUSTEE.csv")
-    df.to_csv("data/dev_dataset.csv", index=False)
+    processed_path = "data/processed/ademe_processed.parquet"
+    clean_path = "data/processed/clean_100k.parquet"
+    ingest_csv_to_parquet(
+        "data/OPERAT03_RATIO_CONSO_AJUSTEE.csv",
+        processed_path,
+    )
+    df = create_dev_dataset(processed_path)
+    df.to_parquet(clean_path, index=False)
+    create_experiment_dataset(
+        clean_path,
+        "data/processed/experiment_100k.parquet",
+    )
