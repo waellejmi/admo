@@ -58,29 +58,38 @@ def _valid_rows(df: pd.DataFrame, columns: list[str]) -> np.ndarray:
     ).to_numpy()
 
 
-def _different_context(base: pd.DataFrame, target: int, candidates: np.ndarray) -> np.ndarray:
-    if not all(column in base.columns for column in CONTEXT_COLUMNS):
-        return candidates
-    target_context = tuple(base.loc[target, CONTEXT_COLUMNS])
-    mask = np.array(
-        [tuple(base.loc[index, CONTEXT_COLUMNS]) != target_context for index in candidates]
-    )
-    return candidates[mask]
-
-
 def _choose_donor(
     rng: np.random.Generator,
-    base: pd.DataFrame,
     target: int,
     candidates: np.ndarray,
+    context_ids: np.ndarray,
+    base: pd.DataFrame,
+    value_columns: tuple[str, ...],
 ) -> int:
+    target_values = base.loc[target, list(value_columns)].to_numpy(dtype=float)
     candidates = candidates[candidates != target]
-    context_candidates = _different_context(base, target, candidates)
-    if len(context_candidates):
-        candidates = context_candidates
     if len(candidates) == 0:
         raise ValueError(f"Could not find a valid donor for row {target}.")
-    return int(rng.choice(candidates))
+
+    # Most candidate pools contain many valid donors. Sampling avoids scanning
+    # the full pool for every injected row.
+    for _ in range(64):
+        donor = int(rng.choice(candidates))
+        if context_ids.size and context_ids[donor] == context_ids[target]:
+            continue
+        donor_values = base.loc[donor, list(value_columns)].to_numpy(dtype=float)
+        if not np.isclose(donor_values, target_values, equal_nan=True).all():
+            return donor
+
+    # Keep deterministic failure behavior for degenerate datasets where the
+    # random attempts did not find a suitable donor.
+    for donor in candidates:
+        if context_ids.size and context_ids[donor] == context_ids[target]:
+            continue
+        donor_values = base.loc[donor, list(value_columns)].to_numpy(dtype=float)
+        if not np.isclose(donor_values, target_values, equal_nan=True).all():
+            return int(donor)
+    raise ValueError(f"Could not find a valid donor for row {target}.")
 
 
 def _copy_values(
@@ -122,11 +131,17 @@ def _inject_contextual(
     target: int,
     rng: np.random.Generator,
     valid_ratios: np.ndarray,
+    context_ids: np.ndarray,
+    contextual_candidates: np.ndarray,
 ) -> None:
-    ratios = base.loc[valid_ratios, RATIO_COLUMNS[0]].sort_values()
-    tail_size = max(1, len(ratios) // 10)
-    candidates = ratios.iloc[np.r_[0:tail_size, -tail_size:]].index.to_numpy()
-    donor = _choose_donor(rng, base, target, candidates)
+    donor = _choose_donor(
+        rng,
+        target,
+        contextual_candidates,
+        context_ids,
+        base,
+        RATIO_COLUMNS,
+    )
     _copy_values(result, target, donor, RATIO_COLUMNS)
 
 
@@ -136,8 +151,16 @@ def _inject_correlational(
     target: int,
     rng: np.random.Generator,
     valid_energy: np.ndarray,
+    context_ids: np.ndarray,
 ) -> None:
-    donor = _choose_donor(rng, base, target, np.flatnonzero(valid_energy))
+    donor = _choose_donor(
+        rng,
+        target,
+        np.flatnonzero(valid_energy),
+        context_ids,
+        base,
+        tuple(ENERGY_MIX_COLUMNS),
+    )
     result.loc[target, list(ENERGY_MIX_COLUMNS)] = _normalise_percentages(
         base.loc[donor, list(ENERGY_MIX_COLUMNS)]
     )
@@ -149,12 +172,19 @@ def _inject_structural(
     target: int,
     rng: np.random.Generator,
     valid_splits: np.ndarray,
+    context_ids: np.ndarray,
+    mono_occupation_pools: tuple[np.ndarray, np.ndarray],
 ) -> None:
-    opposite = valid_splits & (
-        base["is_mono_occupation"].to_numpy()
-        != bool(base.loc[target, "is_mono_occupation"])
+    mono_pool, multi_pool = mono_occupation_pools
+    donor_pool = multi_pool if bool(base.loc[target, "is_mono_occupation"]) else mono_pool
+    donor = _choose_donor(
+        rng,
+        target,
+        donor_pool,
+        context_ids,
+        base,
+        tuple(BUILDING_SPLIT_COLUMNS),
     )
-    donor = _choose_donor(rng, base, target, np.flatnonzero(opposite))
     result.loc[target, list(BUILDING_SPLIT_COLUMNS)] = _normalise_percentages(
         base.loc[donor, list(BUILDING_SPLIT_COLUMNS)]
     )
@@ -166,8 +196,16 @@ def _inject_energy_mix(
     target: int,
     rng: np.random.Generator,
     valid_energy: np.ndarray,
+    context_ids: np.ndarray,
 ) -> None:
-    donor = _choose_donor(rng, base, target, np.flatnonzero(valid_energy))
+    donor = _choose_donor(
+        rng,
+        target,
+        np.flatnonzero(valid_energy),
+        context_ids,
+        base,
+        tuple(ENERGY_MIX_COLUMNS),
+    )
     result.loc[target, list(ENERGY_MIX_COLUMNS)] = _normalise_percentages(
         base.loc[donor, list(ENERGY_MIX_COLUMNS)]
     )
@@ -181,10 +219,29 @@ def _inject_combination(
     valid_energy: np.ndarray,
     valid_splits: np.ndarray,
     valid_ratios: np.ndarray,
+    context_ids: np.ndarray,
+    contextual_candidates: np.ndarray,
+    mono_occupation_pools: tuple[np.ndarray, np.ndarray],
 ) -> None:
-    _inject_contextual(result, base, target, rng, valid_ratios)
-    _inject_energy_mix(result, base, target, rng, valid_energy)
-    _inject_structural(result, base, target, rng, valid_splits)
+    _inject_contextual(
+        result,
+        base,
+        target,
+        rng,
+        valid_ratios,
+        context_ids,
+        contextual_candidates,
+    )
+    _inject_energy_mix(result, base, target, rng, valid_energy, context_ids)
+    _inject_structural(
+        result,
+        base,
+        target,
+        rng,
+        valid_splits,
+        context_ids,
+        mono_occupation_pools,
+    )
 
 
 def _recalculate_derived_columns(result: pd.DataFrame) -> pd.DataFrame:
@@ -193,9 +250,7 @@ def _recalculate_derived_columns(result: pd.DataFrame) -> pd.DataFrame:
     result["is_valid_energy_mix"] = validate_energy_mix(result)
     result["sum_building_split_percent"] = result[BUILDING_SPLIT_COLUMNS].sum(axis=1)
     result["is_valid_building_split"] = validate_building_split(result)
-    result["delta_climat_kwh_m2"] = (
-        result[RATIO_COLUMNS[0]] - result[RATIO_COLUMNS[1]]
-    )
+    result["delta_climat_kwh_m2"] = result[RATIO_COLUMNS[0]] - result[RATIO_COLUMNS[1]]
     return result
 
 
@@ -217,7 +272,10 @@ def validate_injected_dataset(
     missing = required - set(experiment_df.columns)
     if missing:
         raise ValueError(f"Experiment dataset is missing columns: {sorted(missing)}")
-    if experiment_df["source_row_id"].isna().any() or not experiment_df["source_row_id"].is_unique:
+    if (
+        experiment_df["source_row_id"].isna().any()
+        or not experiment_df["source_row_id"].is_unique
+    ):
         raise ValueError("source_row_id must be present and unique.")
 
     anomalies = experiment_df["is_anomaly"].astype(bool)
@@ -248,7 +306,7 @@ def validate_injected_dataset(
         comparable = [
             column
             for column in clean_df.columns
-            if column not in set(GROUND_TRUTH_COLUMNS)
+            if column not in {*GROUND_TRUTH_COLUMNS, "source_row_id"}
         ]
         mutated = experiment_df.loc[anomalies].set_index("source_row_id")[comparable]
         original = clean_by_source.loc[mutated.index, comparable]
@@ -274,7 +332,9 @@ def inject_anomalies(
         clean_df = clean_df.copy()
         clean_df.insert(0, "source_row_id", pd.Series(clean_df.index, dtype="int64"))
 
-    required = set(ENERGY_MIX_COLUMNS) | set(BUILDING_SPLIT_COLUMNS) | set(RATIO_COLUMNS)
+    required = (
+        set(ENERGY_MIX_COLUMNS) | set(BUILDING_SPLIT_COLUMNS) | set(RATIO_COLUMNS)
+    )
     required.add("is_mono_occupation")
     missing = required - set(clean_df.columns)
     if missing:
@@ -295,6 +355,23 @@ def inject_anomalies(
     valid_energy = _valid_rows(base, list(ENERGY_MIX_COLUMNS))
     valid_splits = _valid_rows(base, list(BUILDING_SPLIT_COLUMNS))
     valid_ratios = base[list(RATIO_COLUMNS)].notna().all(axis=1).to_numpy()
+    context_ids = pd.factorize(
+        pd.MultiIndex.from_frame(base[list(CONTEXT_COLUMNS)].astype("string"))
+    )[0]
+    ratio_values = base[RATIO_COLUMNS[0]].to_numpy(dtype=float, na_value=np.nan)
+    valid_ratio_indices = np.flatnonzero(valid_ratios)
+    ordered_ratios = valid_ratio_indices[
+        np.argsort(ratio_values[valid_ratio_indices], kind="stable")
+    ]
+    tail_size = max(1, len(ordered_ratios) // 10)
+    contextual_candidates = np.unique(
+        np.concatenate((ordered_ratios[:tail_size], ordered_ratios[-tail_size:]))
+    )
+    mono_values = base["is_mono_occupation"].to_numpy(dtype=bool)
+    mono_occupation_pools = (
+        np.flatnonzero(valid_splits & ~mono_values),
+        np.flatnonzero(valid_splits & mono_values),
+    )
     injectors = {
         "contextual": _inject_contextual,
         "correlational": _inject_correlational,
@@ -316,11 +393,27 @@ def inject_anomalies(
         for target in targets[offset : offset + count]:
             target = int(target)
             if anomaly_type in {"contextual"}:
-                injector(result, base, target, rng, valid_ratios)
+                injector(
+                    result,
+                    base,
+                    target,
+                    rng,
+                    valid_ratios,
+                    context_ids,
+                    contextual_candidates,
+                )
             elif anomaly_type in {"correlational", "energy_mix"}:
-                injector(result, base, target, rng, valid_energy)
+                injector(result, base, target, rng, valid_energy, context_ids)
             elif anomaly_type == "structural":
-                injector(result, base, target, rng, valid_splits)
+                injector(
+                    result,
+                    base,
+                    target,
+                    rng,
+                    valid_splits,
+                    context_ids,
+                    mono_occupation_pools,
+                )
             else:
                 injector(
                     result,
@@ -330,6 +423,9 @@ def inject_anomalies(
                     valid_energy,
                     valid_splits,
                     valid_ratios,
+                    context_ids,
+                    contextual_candidates,
+                    mono_occupation_pools,
                 )
             result.loc[target, "is_anomaly"] = True
             result.loc[target, "anomaly_type"] = anomaly_type
