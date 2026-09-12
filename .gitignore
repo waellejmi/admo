@@ -14,5 +14,4 @@ wheels/
 /data
 
 #Notes
-/dev_phases.md
-/anomaly_detection_mlops_project_guide.md
+docs/
