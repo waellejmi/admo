@@ -12,6 +12,7 @@ wheels/
 
 #Data
 /data
+/ml/models/
 
 #Notes
 docs/
