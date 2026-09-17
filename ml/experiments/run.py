@@ -86,7 +86,7 @@ def run_experiment(
                     "numeric_imputation": "median",
                     "categorical_imputation": "most_frequent",
                     "numeric_scaling": "standard",
-                    "categorical_encoding": "one_hot",
+                    "categorical_encoding": "frequency",
                 },
                 training_rows=len(clean),
                 validation_rows=0,

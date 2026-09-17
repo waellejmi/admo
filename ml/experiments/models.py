@@ -33,14 +33,14 @@ def build_models(random_seed: int = 42) -> list[SklearnAnomalyModel]:
             estimator=IsolationForest(
                 n_estimators=200,
                 max_samples="auto",
-                contamination="auto",
+                contamination=0.05,
                 random_state=random_seed,
                 n_jobs=-1,
             ),
             configuration={
                 "n_estimators": 200,
                 "max_samples": "auto",
-                "contamination": "auto",
+                "contamination": 0.05,
                 "random_state": random_seed,
             },
         ),
@@ -50,12 +50,14 @@ def build_models(random_seed: int = 42) -> list[SklearnAnomalyModel]:
                 n_neighbors=35,
                 metric="minkowski",
                 novelty=True,
+                contamination=0.05,
                 n_jobs=-1,
             ),
             configuration={
                 "n_neighbors": 35,
                 "metric": "minkowski",
                 "novelty": True,
+                "contamination": 0.05,
             },
         ),
         SklearnAnomalyModel(

@@ -70,13 +70,17 @@ def _choose_donor(
     candidates = candidates[candidates != target]
     if len(candidates) == 0:
         raise ValueError(f"Could not find a valid donor for row {target}.")
+    if context_ids.size:
+        different_context = candidates[
+            context_ids[candidates] != context_ids[target]
+        ]
+        if len(different_context):
+            candidates = different_context
 
     # Most candidate pools contain many valid donors. Sampling avoids scanning
     # the full pool for every injected row.
     for _ in range(64):
         donor = int(rng.choice(candidates))
-        if context_ids.size and context_ids[donor] == context_ids[target]:
-            continue
         donor_values = base.loc[donor, list(value_columns)].to_numpy(dtype=float)
         if not np.isclose(donor_values, target_values, equal_nan=True).all():
             return donor
@@ -84,8 +88,6 @@ def _choose_donor(
     # Keep deterministic failure behavior for degenerate datasets where the
     # random attempts did not find a suitable donor.
     for donor in candidates:
-        if context_ids.size and context_ids[donor] == context_ids[target]:
-            continue
         donor_values = base.loc[donor, list(value_columns)].to_numpy(dtype=float)
         if not np.isclose(donor_values, target_values, equal_nan=True).all():
             return int(donor)
@@ -197,18 +199,25 @@ def _inject_energy_mix(
     rng: np.random.Generator,
     valid_energy: np.ndarray,
     context_ids: np.ndarray,
+    extreme_energy_sources: dict[int, np.ndarray],
 ) -> None:
-    donor = _choose_donor(
-        rng,
-        target,
-        np.flatnonzero(valid_energy),
-        context_ids,
-        base,
-        tuple(ENERGY_MIX_COLUMNS),
+    current = base.loc[target, list(ENERGY_MIX_COLUMNS)].to_numpy(dtype=float)
+    source_order = extreme_energy_sources.get(
+        int(context_ids[target]),
+        np.arange(len(ENERGY_MIX_COLUMNS)),
     )
-    result.loc[target, list(ENERGY_MIX_COLUMNS)] = _normalise_percentages(
-        base.loc[donor, list(ENERGY_MIX_COLUMNS)]
+    source = next(
+        (
+            int(candidate)
+            for candidate in source_order
+            if not np.isclose(current[candidate], 100.0)
+            or not np.isclose(current.sum() - current[candidate], 0.0)
+        ),
+        int(source_order[0]),
     )
+    values = np.zeros(len(ENERGY_MIX_COLUMNS), dtype=float)
+    values[source] = 100.0
+    result.loc[target, list(ENERGY_MIX_COLUMNS)] = values
 
 
 def _inject_combination(
@@ -222,6 +231,7 @@ def _inject_combination(
     context_ids: np.ndarray,
     contextual_candidates: np.ndarray,
     mono_occupation_pools: tuple[np.ndarray, np.ndarray],
+    extreme_energy_sources: dict[int, np.ndarray],
 ) -> None:
     _inject_contextual(
         result,
@@ -232,7 +242,15 @@ def _inject_combination(
         context_ids,
         contextual_candidates,
     )
-    _inject_energy_mix(result, base, target, rng, valid_energy, context_ids)
+    _inject_energy_mix(
+        result,
+        base,
+        target,
+        rng,
+        valid_energy,
+        context_ids,
+        extreme_energy_sources,
+    )
     _inject_structural(
         result,
         base,
@@ -372,6 +390,22 @@ def inject_anomalies(
         np.flatnonzero(valid_splits & ~mono_values),
         np.flatnonzero(valid_splits & mono_values),
     )
+    energy_values = base[list(ENERGY_MIX_COLUMNS)].to_numpy(dtype=float)
+    global_energy_mean = np.nanmean(energy_values[valid_energy], axis=0)
+    extreme_energy_sources: dict[int, np.ndarray] = {}
+    for context_id in np.unique(context_ids):
+        context_rows = valid_energy & (context_ids == context_id)
+        context_mean = (
+            np.nanmean(energy_values[context_rows], axis=0)
+            if context_rows.any()
+            else global_energy_mean
+        )
+        dominant_source = int(np.nanargmax(context_mean))
+        source_order = np.argsort(context_mean, kind="stable")
+        source_order = source_order[source_order != dominant_source]
+        extreme_energy_sources[int(context_id)] = np.concatenate(
+            (source_order, np.array([dominant_source]))
+        )
     injectors = {
         "contextual": _inject_contextual,
         "correlational": _inject_correlational,
@@ -403,7 +437,18 @@ def inject_anomalies(
                     contextual_candidates,
                 )
             elif anomaly_type in {"correlational", "energy_mix"}:
-                injector(result, base, target, rng, valid_energy, context_ids)
+                if anomaly_type == "energy_mix":
+                    injector(
+                        result,
+                        base,
+                        target,
+                        rng,
+                        valid_energy,
+                        context_ids,
+                        extreme_energy_sources,
+                    )
+                else:
+                    injector(result, base, target, rng, valid_energy, context_ids)
             elif anomaly_type == "structural":
                 injector(
                     result,
@@ -426,6 +471,7 @@ def inject_anomalies(
                     context_ids,
                     contextual_candidates,
                     mono_occupation_pools,
+                    extreme_energy_sources,
                 )
             result.loc[target, "is_anomaly"] = True
             result.loc[target, "anomaly_type"] = anomaly_type

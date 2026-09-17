@@ -5,11 +5,11 @@ from typing import Any, Protocol
 import numpy as np
 import pandas as pd
 from processing_ml.features import FEATURE_COLUMNS
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler
 
 DATA_DIR = Path("data/processed")
 CLEAN_DATASET = DATA_DIR / "clean_100k.parquet"
@@ -26,11 +26,37 @@ NUMERIC_FEATURES = [
 ]
 
 
+class FrequencyEncoder(BaseEstimator, TransformerMixin):
+    def fit(self, values: np.ndarray, y: Any = None) -> "FrequencyEncoder":
+        frame = pd.DataFrame(values)
+        self.frequencies_ = [
+            frame[column].value_counts(normalize=True, dropna=False).to_dict()
+            for column in frame.columns
+        ]
+        return self
+
+    def transform(self, values: np.ndarray) -> np.ndarray:
+        frame = pd.DataFrame(values)
+        encoded = np.column_stack(
+            [
+                frame[column].map(self.frequencies_[column]).fillna(0.0)
+                for column in frame.columns
+            ]
+        )
+        return encoded.astype(float)
+
+    def fit_transform(
+        self, values: np.ndarray, y: Any = None
+    ) -> np.ndarray:
+        return self.fit(values, y).transform(values)
+
+
 def build_preprocessor() -> ColumnTransformer:
     categorical = Pipeline(
         [
             ("imputer", SimpleImputer(strategy="most_frequent")),
-            ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+            ("frequency", FrequencyEncoder()),
+            ("scaler", StandardScaler()),
         ]
     )
     numeric = Pipeline(

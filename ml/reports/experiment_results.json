@@ -1,0 +1,322 @@
+[
+  {
+    "model": "isolation_forest",
+    "configuration": {
+      "n_estimators": 200,
+      "max_samples": "auto",
+      "contamination": 0.05,
+      "random_state": 42,
+      "random_seed": 42,
+      "training_seconds": 0.7839716800008318,
+      "inference_seconds": 0.49499069600278744,
+      "model_path": "ml/models/isolation_forest.joblib",
+      "preprocessor_path": "ml/models/preprocessor.joblib",
+      "threshold_policy": "top_5_percent_of_evaluation_scores"
+    },
+    "preprocessing": {
+      "features": [
+        "annee_de_consommation",
+        "cas_assujettissement_efa",
+        "categorie_activite_majoritaire_efa",
+        "sous_categorie_activite_majoritaire_efa",
+        "nombre_de_categories_activite_distinctes",
+        "nombre_de_sous_categories_activite_distinctes",
+        "ratio_de_consommation_ajustee_du_climat_kwh_par_m2",
+        "ratio_de_consommation_brut_kwh_par_m2",
+        "consommation_individuelle_pct",
+        "consommation_espaces_communs_pct",
+        "consommation_repartie_pct",
+        "electricite_pct",
+        "gaz_naturel_reseau_pct",
+        "gaz_naturel_liquefie_pct",
+        "gaz_propane_pct",
+        "gaz_butane_pct",
+        "fioul_domestique_pct",
+        "charbon_pct",
+        "houille_pct",
+        "bois_pct",
+        "reseau_de_chaleur_pct",
+        "reseau_de_froid_pct",
+        "gazole_non_routier_pct",
+        "is_mono_occupation"
+      ],
+      "categorical_features": [
+        "annee_de_consommation",
+        "cas_assujettissement_efa",
+        "categorie_activite_majoritaire_efa",
+        "sous_categorie_activite_majoritaire_efa"
+      ],
+      "numeric_imputation": "median",
+      "categorical_imputation": "most_frequent",
+      "numeric_scaling": "standard",
+      "categorical_encoding": "frequency"
+    },
+    "training_rows": 100000,
+    "validation_rows": 0,
+    "test_rows": 100000,
+    "validation_metrics": {},
+    "test_metrics": {
+      "pr_auc": 0.08418857501423818,
+      "roc_auc": 0.64930216,
+      "precision": 0.1136,
+      "recall": 0.1136,
+      "f1": 0.1136,
+      "threshold": 0.0021465224922985193
+    },
+    "per_type_metrics": {
+      "contextual": {
+        "pr_auc": 0.01524563072187756,
+        "roc_auc": 0.5960057421052631,
+        "precision": 0.0207688908528502,
+        "recall": 0.094,
+        "f1": 0.034020991675714804,
+        "threshold": 0.0021465224922985193
+      },
+      "correlational": {
+        "pr_auc": 0.017068607355575596,
+        "roc_auc": 0.5966214694736842,
+        "precision": 0.017512746619374863,
+        "recall": 0.0632,
+        "f1": 0.027425794132963026,
+        "threshold": 0.0021465224922985193
+      },
+      "structural": {
+        "pr_auc": 0.029316779514677736,
+        "roc_auc": 0.7749311052631579,
+        "precision": 0.03568320278503046,
+        "recall": 0.164,
+        "f1": 0.058613295210864905,
+        "threshold": 0.0021465224922985193
+      },
+      "energy_mix": {
+        "pr_auc": 0.015300297516820556,
+        "roc_auc": 0.5700356631578947,
+        "precision": 0.01685891748003549,
+        "recall": 0.0608,
+        "f1": 0.026398054880166725,
+        "threshold": 0.0021465224922985193
+      },
+      "combination": {
+        "pr_auc": 0.025719338601006246,
+        "roc_auc": 0.8345050736842106,
+        "precision": 0.03379114889906257,
+        "recall": 0.31,
+        "f1": 0.060939650088460785,
+        "threshold": 0.0021465224922985193
+      }
+    }
+  },
+  {
+    "model": "lof",
+    "configuration": {
+      "n_neighbors": 35,
+      "metric": "minkowski",
+      "novelty": true,
+      "contamination": 0.05,
+      "random_seed": 42,
+      "training_seconds": 3.66983972700109,
+      "inference_seconds": 3.727295321998099,
+      "model_path": "ml/models/lof.joblib",
+      "preprocessor_path": "ml/models/preprocessor.joblib",
+      "threshold_policy": "top_5_percent_of_evaluation_scores"
+    },
+    "preprocessing": {
+      "features": [
+        "annee_de_consommation",
+        "cas_assujettissement_efa",
+        "categorie_activite_majoritaire_efa",
+        "sous_categorie_activite_majoritaire_efa",
+        "nombre_de_categories_activite_distinctes",
+        "nombre_de_sous_categories_activite_distinctes",
+        "ratio_de_consommation_ajustee_du_climat_kwh_par_m2",
+        "ratio_de_consommation_brut_kwh_par_m2",
+        "consommation_individuelle_pct",
+        "consommation_espaces_communs_pct",
+        "consommation_repartie_pct",
+        "electricite_pct",
+        "gaz_naturel_reseau_pct",
+        "gaz_naturel_liquefie_pct",
+        "gaz_propane_pct",
+        "gaz_butane_pct",
+        "fioul_domestique_pct",
+        "charbon_pct",
+        "houille_pct",
+        "bois_pct",
+        "reseau_de_chaleur_pct",
+        "reseau_de_froid_pct",
+        "gazole_non_routier_pct",
+        "is_mono_occupation"
+      ],
+      "categorical_features": [
+        "annee_de_consommation",
+        "cas_assujettissement_efa",
+        "categorie_activite_majoritaire_efa",
+        "sous_categorie_activite_majoritaire_efa"
+      ],
+      "numeric_imputation": "median",
+      "categorical_imputation": "most_frequent",
+      "numeric_scaling": "standard",
+      "categorical_encoding": "frequency"
+    },
+    "training_rows": 100000,
+    "validation_rows": 0,
+    "test_rows": 100000,
+    "validation_metrics": {},
+    "test_metrics": {
+      "pr_auc": 0.08197586939680543,
+      "roc_auc": 0.6451755389473685,
+      "precision": 0.1044,
+      "recall": 0.1044,
+      "f1": 0.1044,
+      "threshold": 2.0460755961824955
+    },
+    "per_type_metrics": {
+      "contextual": {
+        "pr_auc": 0.020581036488145577,
+        "roc_auc": 0.6910322947368421,
+        "precision": 0.026310067405957815,
+        "recall": 0.121,
+        "f1": 0.043222003929273084,
+        "threshold": 2.0460755961824955
+      },
+      "correlational": {
+        "pr_auc": 0.017838160817502606,
+        "roc_auc": 0.6032997052631579,
+        "precision": 0.019272886552781428,
+        "recall": 0.0704,
+        "f1": 0.030261348005502064,
+        "threshold": 2.0460755961824955
+      },
+      "structural": {
+        "pr_auc": 0.020405906558510854,
+        "roc_auc": 0.6618155789473684,
+        "precision": 0.02757871878393051,
+        "recall": 0.127,
+        "f1": 0.04531668153434434,
+        "threshold": 2.0460755961824955
+      },
+      "energy_mix": {
+        "pr_auc": 0.018923952642792112,
+        "roc_auc": 0.5982679705263159,
+        "precision": 0.022484173761187512,
+        "recall": 0.0824,
+        "f1": 0.03532841708111816,
+        "threshold": 2.0460755961824955
+      },
+      "combination": {
+        "pr_auc": 0.013476022179408192,
+        "roc_auc": 0.7421404526315789,
+        "precision": 0.018197763648322735,
+        "recall": 0.166,
+        "f1": 0.032799841928472635,
+        "threshold": 2.0460755961824955
+      }
+    }
+  },
+  {
+    "model": "one_class_svm",
+    "configuration": {
+      "kernel": "rbf",
+      "gamma": "scale",
+      "nu": 0.05,
+      "random_seed": 42,
+      "training_seconds": 87.12328102700121,
+      "inference_seconds": 16.789643647000048,
+      "model_path": "ml/models/one_class_svm.joblib",
+      "preprocessor_path": "ml/models/preprocessor.joblib",
+      "threshold_policy": "top_5_percent_of_evaluation_scores"
+    },
+    "preprocessing": {
+      "features": [
+        "annee_de_consommation",
+        "cas_assujettissement_efa",
+        "categorie_activite_majoritaire_efa",
+        "sous_categorie_activite_majoritaire_efa",
+        "nombre_de_categories_activite_distinctes",
+        "nombre_de_sous_categories_activite_distinctes",
+        "ratio_de_consommation_ajustee_du_climat_kwh_par_m2",
+        "ratio_de_consommation_brut_kwh_par_m2",
+        "consommation_individuelle_pct",
+        "consommation_espaces_communs_pct",
+        "consommation_repartie_pct",
+        "electricite_pct",
+        "gaz_naturel_reseau_pct",
+        "gaz_naturel_liquefie_pct",
+        "gaz_propane_pct",
+        "gaz_butane_pct",
+        "fioul_domestique_pct",
+        "charbon_pct",
+        "houille_pct",
+        "bois_pct",
+        "reseau_de_chaleur_pct",
+        "reseau_de_froid_pct",
+        "gazole_non_routier_pct",
+        "is_mono_occupation"
+      ],
+      "categorical_features": [
+        "annee_de_consommation",
+        "cas_assujettissement_efa",
+        "categorie_activite_majoritaire_efa",
+        "sous_categorie_activite_majoritaire_efa"
+      ],
+      "numeric_imputation": "median",
+      "categorical_imputation": "most_frequent",
+      "numeric_scaling": "standard",
+      "categorical_encoding": "frequency"
+    },
+    "training_rows": 100000,
+    "validation_rows": 0,
+    "test_rows": 100000,
+    "validation_metrics": {},
+    "test_metrics": {
+      "pr_auc": 0.05945659229706345,
+      "roc_auc": 0.5240088757894736,
+      "precision": 0.0846,
+      "recall": 0.0846,
+      "f1": 0.0846,
+      "threshold": 1.0887879652209165
+    },
+    "per_type_metrics": {
+      "contextual": {
+        "pr_auc": 0.011064866368578938,
+        "roc_auc": 0.5022452631578946,
+        "precision": 0.013152220784821044,
+        "recall": 0.061,
+        "f1": 0.021638879035118838,
+        "threshold": 1.0887879652209165
+      },
+      "correlational": {
+        "pr_auc": 0.014768796339065539,
+        "roc_auc": 0.5064423578947368,
+        "precision": 0.02200854700854701,
+        "recall": 0.0824,
+        "f1": 0.03473861720067454,
+        "threshold": 1.0887879652209165
+      },
+      "structural": {
+        "pr_auc": 0.015129969276401712,
+        "roc_auc": 0.566292,
+        "precision": 0.021799529814062833,
+        "recall": 0.102,
+        "f1": 0.03592181722134179,
+        "threshold": 1.0887879652209165
+      },
+      "energy_mix": {
+        "pr_auc": 0.014124095440691743,
+        "roc_auc": 0.4992413557894737,
+        "precision": 0.020333904109589043,
+        "recall": 0.076,
+        "f1": 0.032083755488010804,
+        "threshold": 1.0887879652209165
+      },
+      "combination": {
+        "pr_auc": 0.009169194146477112,
+        "roc_auc": 0.588804947368421,
+        "precision": 0.013364949342530718,
+        "recall": 0.124,
+        "f1": 0.024129208017123954,
+        "threshold": 1.0887879652209165
+      }
+    }
+  }
+]
