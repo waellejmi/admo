@@ -71,9 +71,7 @@ def _choose_donor(
     if len(candidates) == 0:
         raise ValueError(f"Could not find a valid donor for row {target}.")
     if context_ids.size:
-        different_context = candidates[
-            context_ids[candidates] != context_ids[target]
-        ]
+        different_context = candidates[context_ids[candidates] != context_ids[target]]
         if len(different_context):
             candidates = different_context
 
@@ -178,7 +176,9 @@ def _inject_structural(
     mono_occupation_pools: tuple[np.ndarray, np.ndarray],
 ) -> None:
     mono_pool, multi_pool = mono_occupation_pools
-    donor_pool = multi_pool if bool(base.loc[target, "is_mono_occupation"]) else mono_pool
+    donor_pool = (
+        multi_pool if bool(base.loc[target, "is_mono_occupation"]) else mono_pool
+    )
     donor = _choose_donor(
         rng,
         target,
@@ -364,7 +364,7 @@ def inject_anomalies(
     result["anomaly_type"] = "none"
     result["anomaly_severity"] = "none"
 
-    anomaly_count = int(round(len(result) * anomaly_rate))
+    anomaly_count = round(len(result) * anomaly_rate)
     distribution = anomaly_type_distribution or DEFAULT_ANOMALY_DISTRIBUTION
     counts = _allocate_counts(anomaly_count, distribution)
     rng = np.random.default_rng(random_seed)

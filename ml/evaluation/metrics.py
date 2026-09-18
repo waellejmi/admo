@@ -1,5 +1,3 @@
-from typing import Any
-
 import numpy as np
 from sklearn.metrics import (
     average_precision_score,
@@ -45,7 +43,13 @@ def metrics_by_anomaly_type(
     threshold: float,
 ) -> dict[str, dict[str, float]]:
     results: dict[str, dict[str, float]] = {}
-    for anomaly_type in ("contextual", "correlational", "structural", "energy_mix", "combination"):
+    for anomaly_type in (
+        "contextual",
+        "correlational",
+        "structural",
+        "energy_mix",
+        "combination",
+    ):
         mask = (anomaly_types == anomaly_type) | (y_true == 0)
         if not mask.any() or not y_true[mask].any():
             continue

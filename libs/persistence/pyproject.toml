@@ -1,0 +1,15 @@
+[project]
+name = "admo-persistence"
+version = "0.1.0"
+description = "PostgreSQL metadata and object-storage integration for ADMO"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.16.5",
+    "boto3>=1.40.30",
+    "psycopg[binary]>=3.2.10",
+    "sqlalchemy>=2.0.43",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
