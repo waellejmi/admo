@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import BinaryIO
 
 import boto3
+from botocore.config import Config
 
 from .config import load_settings
 
@@ -26,6 +27,7 @@ def create_object_client():
         aws_access_key_id=settings.object_storage_access_key,
         aws_secret_access_key=settings.object_storage_secret_key,
         region_name=settings.object_storage_region,
+        config=Config(s3={"addressing_style": "path"}),
     )
 
 

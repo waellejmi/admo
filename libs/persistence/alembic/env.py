@@ -1,5 +1,3 @@
-from logging.config import fileConfig
-
 from admo_persistence.config import load_settings
 from admo_persistence.models import Base
 from alembic import context
@@ -7,9 +5,6 @@ from sqlalchemy import engine_from_config, pool
 
 config = context.config
 config.set_main_option("sqlalchemy.url", load_settings().database_url)
-if config.config_file_name:
-    fileConfig(config.config_file_name)
-
 target_metadata = Base.metadata
 
 

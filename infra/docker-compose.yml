@@ -21,7 +21,7 @@ services:
     command: /garage server --single-node --default-bucket
     environment:
       GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:-GKADMOLOCAL}
-      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:-admo123}
+      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:-admo_dev_secret_key_change_me}
       GARAGE_DEFAULT_BUCKET: ${GARAGE_DEFAULT_BUCKET:-admo}
     ports:
       - "${GARAGE_S3_PORT:-3900}:3900"

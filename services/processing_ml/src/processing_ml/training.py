@@ -1,5 +1,6 @@
 import argparse
 import time
+from datetime import UTC, datetime
 from io import BytesIO
 from uuid import UUID
 
@@ -104,6 +105,7 @@ def train_isolation_forest(
             metrics={"training_seconds": training_seconds},
         )
         run.status = "completed"
+        run.finished_at = datetime.now(UTC)
         return run.id
 
 

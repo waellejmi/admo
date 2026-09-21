@@ -28,7 +28,7 @@ def load_settings() -> StorageSettings:
         ),
         object_storage_secret_key=os.getenv(
             "ADMO_OBJECT_STORAGE_SECRET_KEY",
-            "admo123",
+            "admo_dev_secret_key_change_me",
         ),
         object_storage_bucket=os.getenv("ADMO_OBJECT_STORAGE_BUCKET", "admo"),
         object_storage_region=os.getenv("ADMO_OBJECT_STORAGE_REGION", "garage"),
