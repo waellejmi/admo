@@ -1,0 +1,25 @@
+[project]
+name = "inference"
+version = "0.1.0"
+description = "Local anomaly inference API for ADMO"
+requires-python = ">=3.13"
+dependencies = [
+    "admo-persistence",
+    "fastapi>=0.116.1",
+    "joblib>=1.5.2",
+    "numpy>=2.3.0",
+    "pandas>=3.0.5",
+    "processing-ml",
+    "uvicorn[standard]>=0.35.0",
+]
+
+[tool.uv.sources]
+admo-persistence = { workspace = true }
+processing-ml = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "admo_inference"

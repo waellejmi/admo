@@ -4,83 +4,17 @@ from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
-from processing_ml.features import FEATURE_COLUMNS
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from processing_ml.model_features import (
+    select_features,
+)
 
 DATA_DIR = Path("data/processed")
 CLEAN_DATASET = DATA_DIR / "clean_100k.parquet"
 EXPERIMENT_DATASET = DATA_DIR / "experiment_100k.parquet"
 
-CATEGORICAL_FEATURES = [
-    "annee_de_consommation",
-    "cas_assujettissement_efa",
-    "categorie_activite_majoritaire_efa",
-    "sous_categorie_activite_majoritaire_efa",
-]
-NUMERIC_FEATURES = [
-    column for column in FEATURE_COLUMNS if column not in CATEGORICAL_FEATURES
-]
-
-
-class FrequencyEncoder(BaseEstimator, TransformerMixin):
-    def fit(self, values: np.ndarray, y: Any = None) -> "FrequencyEncoder":
-        frame = pd.DataFrame(values)
-        self.frequencies_ = [
-            frame[column].value_counts(normalize=True, dropna=False).to_dict()
-            for column in frame.columns
-        ]
-        return self
-
-    def transform(self, values: np.ndarray) -> np.ndarray:
-        frame = pd.DataFrame(values)
-        encoded = np.column_stack(
-            [
-                frame[column].map(self.frequencies_[column]).fillna(0.0)
-                for column in frame.columns
-            ]
-        )
-        return encoded.astype(float)
-
-    def fit_transform(
-        self, values: np.ndarray, y: Any = None
-    ) -> np.ndarray:
-        return self.fit(values, y).transform(values)
-
-
-def build_preprocessor() -> ColumnTransformer:
-    categorical = Pipeline(
-        [
-            ("imputer", SimpleImputer(strategy="most_frequent")),
-            ("frequency", FrequencyEncoder()),
-            ("scaler", StandardScaler()),
-        ]
-    )
-    numeric = Pipeline(
-        [
-            ("imputer", SimpleImputer(strategy="median")),
-            ("scaler", StandardScaler()),
-        ]
-    )
-    return ColumnTransformer(
-        [
-            ("categorical", categorical, CATEGORICAL_FEATURES),
-            ("numeric", numeric, NUMERIC_FEATURES),
-        ],
-        remainder="drop",
-        verbose_feature_names_out=False,
-    )
-
 
 def load_features(path: str | Path) -> pd.DataFrame:
-    df = pd.read_parquet(path)
-    missing = set(FEATURE_COLUMNS) - set(df.columns)
-    if missing:
-        raise ValueError(f"Dataset is missing configured features: {sorted(missing)}")
-    return df[FEATURE_COLUMNS].copy()
+    return select_features(pd.read_parquet(path))
 
 
 def split_evaluation_data(
@@ -95,12 +29,12 @@ def split_evaluation_data(
     if "is_anomaly" in df.columns:
         for _, group in df.groupby("is_anomaly", sort=False):
             indices = group.index.to_numpy()
-            count = int(round(len(indices) * validation_fraction))
+            count = round(len(indices) * validation_fraction)
             selected = rng.choice(indices, size=count, replace=False)
             validation_mask[df.index.get_indexer(selected)] = True
     else:
         validation_indices = rng.choice(
-            len(df), size=int(round(len(df) * validation_fraction)), replace=False
+            len(df), size=round(len(df) * validation_fraction), replace=False
         )
         validation_mask[validation_indices] = True
     return df.loc[validation_mask].copy(), df.loc[~validation_mask].copy()

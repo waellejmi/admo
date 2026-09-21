@@ -2,31 +2,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from .columns import NUMERIC_COLUMNS
 from .features import add_engineered_features, add_occupation_features
-from .ingestion import load_parquet
 from .validation import validate_building_split, validate_energy_mix
-
-NUMERIC_COLUMNS = [
-    "ratio_de_consommation_ajustee_du_climat_kwh_par_m2",
-    "ratio_de_consommation_brut_kwh_par_m2",
-    "consommation_individuelle_pct",
-    "consommation_espaces_communs_pct",
-    "consommation_repartie_pct",
-    "electricite_pct",
-    "gaz_naturel_reseau_pct",
-    "gaz_naturel_liquefie_pct",
-    "gaz_propane_pct",
-    "gaz_butane_pct",
-    "fioul_domestique_pct",
-    "charbon_pct",
-    "houille_pct",
-    "bois_pct",
-    "reseau_de_chaleur_pct",
-    "reseau_de_froid_pct",
-    "gazole_non_routier_pct",
-    "nombre_de_categories_activite_distinctes",
-    "nombre_de_sous_categories_activite_distinctes",
-]
 
 
 def filter_accumulated_years(df: pd.DataFrame) -> pd.DataFrame:
@@ -68,8 +46,12 @@ def preprocess_parquet(
     raw_path: str | Path,
     processed_path: str | Path,
 ) -> pd.DataFrame:
-    df = preprocess(load_parquet(raw_path))
+    df = preprocess(pd.read_parquet(raw_path))
     output_path = Path(processed_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
     return df
+
+
+def preprocess_raw_frame(df: pd.DataFrame) -> pd.DataFrame:
+    return preprocess(df)

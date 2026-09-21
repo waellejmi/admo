@@ -6,11 +6,18 @@ readme = "README.md"
 requires-python = ">=3.13"
 
 dependencies = [
+    "admo-persistence",
     "pandas>=3.0.5",
     "pyarrow>=21.0.0",
     "joblib>=1.5.2",
     "scikit-learn>=1.7.2",
 ]
+
+[project.scripts]
+admo-train = "processing_ml.training:main"
+
+[tool.uv.sources]
+admo-persistence = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
