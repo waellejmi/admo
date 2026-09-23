@@ -7,10 +7,10 @@ requires-python = ">=3.13"
 
 dependencies = [
     "admo-persistence",
-    "pandas>=3.0.5",
-    "pyarrow>=21.0.0",
-    "joblib>=1.5.2",
-    "scikit-learn>=1.7.2",
+    "joblib>=1.6.0",
+    "pandas>=3.0.6",
+    "pyarrow>=25.0.1",
+    "scikit-learn>=1.9.1",
 ]
 
 [project.scripts]
@@ -20,5 +20,5 @@ admo-train = "processing_ml.training:main"
 admo-persistence = { workspace = true }
 
 [build-system]
-requires = ["uv_build>=0.12.5,<0.13.0"]
+requires = ["uv_build>=0.12.18,<0.13.0"]
 build-backend = "uv_build"
