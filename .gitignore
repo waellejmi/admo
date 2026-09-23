@@ -16,3 +16,7 @@ wheels/
 
 #Notes
 docs/
+/.airflow
+/assets
+
+*.md

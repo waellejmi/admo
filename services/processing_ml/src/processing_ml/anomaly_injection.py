@@ -130,7 +130,6 @@ def _inject_contextual(
     base: pd.DataFrame,
     target: int,
     rng: np.random.Generator,
-    valid_ratios: np.ndarray,
     context_ids: np.ndarray,
     contextual_candidates: np.ndarray,
 ) -> None:
@@ -171,7 +170,6 @@ def _inject_structural(
     base: pd.DataFrame,
     target: int,
     rng: np.random.Generator,
-    valid_splits: np.ndarray,
     context_ids: np.ndarray,
     mono_occupation_pools: tuple[np.ndarray, np.ndarray],
 ) -> None:
@@ -196,8 +194,6 @@ def _inject_energy_mix(
     result: pd.DataFrame,
     base: pd.DataFrame,
     target: int,
-    rng: np.random.Generator,
-    valid_energy: np.ndarray,
     context_ids: np.ndarray,
     extreme_energy_sources: dict[int, np.ndarray],
 ) -> None:
@@ -225,9 +221,6 @@ def _inject_combination(
     base: pd.DataFrame,
     target: int,
     rng: np.random.Generator,
-    valid_energy: np.ndarray,
-    valid_splits: np.ndarray,
-    valid_ratios: np.ndarray,
     context_ids: np.ndarray,
     contextual_candidates: np.ndarray,
     mono_occupation_pools: tuple[np.ndarray, np.ndarray],
@@ -238,25 +231,21 @@ def _inject_combination(
         base,
         target,
         rng,
-        valid_ratios,
         context_ids,
         contextual_candidates,
     )
     _inject_energy_mix(
-        result,
-        base,
-        target,
-        rng,
-        valid_energy,
-        context_ids,
-        extreme_energy_sources,
+        result=result,
+        base=base,
+        target=target,
+        context_ids=context_ids,
+        extreme_energy_sources=extreme_energy_sources,
     )
     _inject_structural(
         result,
         base,
         target,
         rng,
-        valid_splits,
         context_ids,
         mono_occupation_pools,
     )
@@ -432,7 +421,6 @@ def inject_anomalies(
                     base,
                     target,
                     rng,
-                    valid_ratios,
                     context_ids,
                     contextual_candidates,
                 )
@@ -442,8 +430,6 @@ def inject_anomalies(
                         result,
                         base,
                         target,
-                        rng,
-                        valid_energy,
                         context_ids,
                         extreme_energy_sources,
                     )
@@ -455,7 +441,6 @@ def inject_anomalies(
                     base,
                     target,
                     rng,
-                    valid_splits,
                     context_ids,
                     mono_occupation_pools,
                 )
@@ -465,9 +450,6 @@ def inject_anomalies(
                     base,
                     target,
                     rng,
-                    valid_energy,
-                    valid_splits,
-                    valid_ratios,
                     context_ids,
                     contextual_candidates,
                     mono_occupation_pools,
