@@ -1,0 +1,12 @@
+[project]
+name = "admo-airflow"
+version = "0.1.0"
+description = "Airflow DAGs for the ADMO data and training pipelines"
+requires-python = ">=3.13"
+dependencies = [
+    "apache-airflow>=3.3.2",
+    "requests>=2.34.2",
+]
+
+[tool.uv]
+package = false
