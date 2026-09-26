@@ -21,6 +21,7 @@ from admo_persistence.registry import (
 from sklearn.ensemble import IsolationForest
 from sqlalchemy import select
 
+from .evaluation import evaluate_persisted_model, report_json
 from .model_features import build_preprocessor, select_features
 
 
@@ -30,6 +31,10 @@ def train_isolation_forest(
     preprocessor_object_key: str,
     version: str,
     random_seed: int = 42,
+    evaluation_object_key: str | None = None,
+    evaluation_anomaly_rate: float = 0.05,
+    evaluation_anomaly_seed: int = 42,
+    evaluation_ks: tuple[int, ...] = (100,),
 ) -> UUID:
     with session_scope() as session:
         dataset = session.scalar(
@@ -51,6 +56,7 @@ def train_isolation_forest(
                 "training_object_key": training_object_key,
                 "model_object_key": model_object_key,
                 "preprocessor_object_key": preprocessor_object_key,
+                "evaluation_object_key": evaluation_object_key,
             },
         )
         pipeline_run_id = pipeline_run.id
@@ -131,6 +137,47 @@ def train_isolation_forest(
                 model_object_key,
                 "application/octet-stream",
             )
+            if evaluation_object_key:
+                evaluation_report = evaluate_persisted_model(
+                    model_object_key,
+                    preprocessor_object_key,
+                    evaluation_object_key,
+                    evaluation_anomaly_rate,
+                    evaluation_anomaly_seed,
+                    evaluation_ks,
+                )
+                mlflow.log_params(
+                    {
+                        "evaluation_dataset_key": evaluation_object_key,
+                        "evaluation_anomaly_rate": evaluation_anomaly_rate,
+                        "evaluation_anomaly_seed": evaluation_anomaly_seed,
+                        "evaluation_rows": evaluation_report["evaluation_rows"],
+                        "evaluation_anomaly_count": evaluation_report["anomaly_count"],
+                    }
+                )
+                mlflow.log_metrics(
+                    {
+                        f"evaluation_{name}": value
+                        for name, value in evaluation_report["metrics"].items()
+                    }
+                )
+                for anomaly_type, metrics in evaluation_report[
+                    "per_type_metrics"
+                ].items():
+                    mlflow.log_metrics(
+                        {
+                            f"evaluation_{name}_{anomaly_type}": value
+                            for name, value in metrics.items()
+                        }
+                    )
+                mlflow.log_text(
+                    report_json(evaluation_report),
+                    "evaluation_metrics.json",
+                )
+                mlflow.set_tag(
+                    "admo_evaluation_score_direction",
+                    evaluation_report["score_direction"],
+                )
             mlflow.log_text(
                 json.dumps(
                     {
@@ -224,13 +271,22 @@ def main() -> None:
     parser.add_argument("--preprocessor-key", required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--random-seed", type=int, default=42)
+    parser.add_argument("--evaluation-key")
+    parser.add_argument("--evaluation-anomaly-rate", type=float, default=0.05)
+    parser.add_argument("--evaluation-anomaly-seed", type=int, default=42)
+    parser.add_argument("--evaluation-k", type=int, action="append", default=[100])
     args = parser.parse_args()
+
     train_isolation_forest(
         training_object_key=args.training_key,
         model_object_key=args.model_key,
         preprocessor_object_key=args.preprocessor_key,
         version=args.version,
         random_seed=args.random_seed,
+        evaluation_object_key=args.evaluation_key,
+        evaluation_anomaly_rate=args.evaluation_anomaly_rate,
+        evaluation_anomaly_seed=args.evaluation_anomaly_seed,
+        evaluation_ks=tuple(sorted(set(args.evaluation_k))),
     )
 
 

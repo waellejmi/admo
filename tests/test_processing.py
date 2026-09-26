@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from processing_ml.anomaly_injection import inject_anomalies
 from processing_ml.columns import (
     BUILDING_SPLIT_COLUMNS,
@@ -6,6 +7,7 @@ from processing_ml.columns import (
 )
 from processing_ml.features import add_engineered_features, add_occupation_features
 from processing_ml.model_features import build_preprocessor
+from processing_ml.evaluation import calculate_metrics, precision_at_k, recall_at_k
 
 
 def _clean_frame(rows: int = 20) -> pd.DataFrame:
@@ -64,3 +66,14 @@ def test_model_preprocessor_fits_explicit_feature_contract():
     transformed = build_preprocessor().fit_transform(frame)
 
     assert transformed.shape == (len(frame), 24)
+
+
+def test_ranking_metrics_measure_top_k_alert_budget():
+    y_true = np.array([0, 1, 0, 1, 0])
+    scores = np.array([0.1, 0.9, 0.6, 0.7, 0.2])
+
+    assert precision_at_k(y_true, scores, 2) == 1.0
+    assert recall_at_k(y_true, scores, 2) == 1.0
+    metrics = calculate_metrics(y_true, scores, ks=(2,))
+    assert metrics["pr_auc"] > 0.0
+    assert metrics["precision_at_2"] == 1.0

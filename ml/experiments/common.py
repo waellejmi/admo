@@ -17,7 +17,7 @@ def load_features(path: str | Path) -> pd.DataFrame:
     return select_features(pd.read_parquet(path))
 
 
-def split_evaluation_data(
+def split_evaluation_daka(
     df: pd.DataFrame,
     validation_fraction: float = 0.5,
     random_seed: int = 42,

@@ -1,1 +1,1 @@
-"""Shared machine-learning experiment tooling."""
+"""Machine learning experimentation."""

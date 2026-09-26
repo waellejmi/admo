@@ -83,26 +83,36 @@ def train_model(training_key: str) -> str:
     version = params["version"]
     model_key = f"models/isolation_forest/version={version}/model.joblib"
     preprocessor_key = f"models/isolation_forest/version={version}/preprocessor.joblib"
-    subprocess.run(
-        [
-            "uv",
-            "run",
-            "--package",
-            "processing-ml",
-            "admo-train",
-            "--training-key",
-            training_key,
-            "--model-key",
-            model_key,
-            "--preprocessor-key",
-            preprocessor_key,
-            "--version",
-            version,
-        ],
-        cwd=PROJECT_ROOT,
-        check=True,
-        env=os.environ.copy(),
-    )
+    command = [
+        "uv",
+        "run",
+        "--package",
+        "processing-ml",
+        "admo-train",
+        "--training-key",
+        training_key,
+        "--model-key",
+        model_key,
+        "--preprocessor-key",
+        preprocessor_key,
+        "--version",
+        version,
+    ]
+    evaluation_key = params["evaluation_key"]
+    if evaluation_key:
+        command.extend(
+            [
+                "--evaluation-key",
+                evaluation_key,
+                "--evaluation-anomaly-rate",
+                str(params["evaluation_anomaly_rate"]),
+                "--evaluation-anomaly-seed",
+                str(params["evaluation_anomaly_seed"]),
+                "--evaluation-k",
+                str(params["evaluation_k"]),
+            ]
+        )
+    subprocess.run(command, cwd=PROJECT_ROOT, check=True, env=os.environ.copy())
     return model_key
 
 
@@ -140,6 +150,29 @@ def train_model(training_key: str) -> str:
             42,
             type="integer",
             title="Development dataset seed",
+        ),
+        "evaluation_key": Param(
+            "",
+            type="string",
+            title="Optional clean evaluation dataset key",
+        ),
+        "evaluation_anomaly_rate": Param(
+            0.05,
+            type="number",
+            minimum=0.0,
+            maximum=1.0,
+            title="Evaluation anomaly rate",
+        ),
+        "evaluation_anomaly_seed": Param(
+            42,
+            type="integer",
+            title="Evaluation anomaly seed",
+        ),
+        "evaluation_k": Param(
+            100,
+            type="integer",
+            minimum=1,
+            title="Evaluation alert budget k",
         ),
     },
     tags=["admo", "training", "human-controlled"],
