@@ -1,13 +1,13 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 from processing_ml.anomaly_injection import inject_anomalies
 from processing_ml.columns import (
     BUILDING_SPLIT_COLUMNS,
     ENERGY_MIX_COLUMNS,
 )
+from processing_ml.evaluation import calculate_metrics, precision_at_k, recall_at_k
 from processing_ml.features import add_engineered_features, add_occupation_features
 from processing_ml.model_features import build_preprocessor
-from processing_ml.evaluation import calculate_metrics, precision_at_k, recall_at_k
 
 
 def _clean_frame(rows: int = 20) -> pd.DataFrame:

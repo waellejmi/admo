@@ -20,7 +20,6 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from .anomaly_injection import inject_anomalies
 from .model_features import select_features
 
 
@@ -94,32 +93,32 @@ def metrics_by_anomaly_type(
     return results
 
 
-def evaluate_model(
+def evaluate_labeled_model(
     model: Any,
     preprocessor: Any,
-    clean_evaluation: pd.DataFrame,
-    anomaly_rate: float = 0.05,
-    anomaly_seed: int = 42,
+    labeled_evaluation: pd.DataFrame,
     ks: tuple[int, ...] = (),
 ) -> dict[str, Any]:
-    labeled = inject_anomalies(
-        clean_evaluation,
-        anomaly_rate=anomaly_rate,
-        random_seed=anomaly_seed,
-    )
-    values = preprocessor.transform(select_features(labeled))
+    required = {"is_anomaly", "anomaly_type"}
+    missing = required - set(labeled_evaluation.columns)
+    if missing:
+        raise ValueError(f"Evaluation dataset is missing labels: {sorted(missing)}")
+    values = preprocessor.transform(select_features(labeled_evaluation))
     scores = -model.score_samples(values)
-    y_true = labeled["is_anomaly"].astype(int).to_numpy()
+    y_true = labeled_evaluation["is_anomaly"].astype(int).to_numpy()
     threshold = select_threshold(y_true, scores)
     return {
         "metrics": calculate_metrics(y_true, scores, threshold, ks),
         "per_type_metrics": metrics_by_anomaly_type(
-            labeled["anomaly_type"].to_numpy(), y_true, scores, threshold, ks
+            labeled_evaluation["anomaly_type"].to_numpy(),
+            y_true,
+            scores,
+            threshold,
+            ks,
         ),
-        "evaluation_rows": len(labeled),
+        "evaluation_rows": len(labeled_evaluation),
         "anomaly_count": int(y_true.sum()),
         "anomaly_rate": float(y_true.mean()),
-        "anomaly_seed": anomaly_seed,
         "score_direction": "higher_is_more_anomalous",
     }
 
@@ -128,15 +127,18 @@ def evaluate_persisted_model(
     model_object_key: str,
     preprocessor_object_key: str,
     evaluation_object_key: str,
-    anomaly_rate: float = 0.05,
-    anomaly_seed: int = 42,
     ks: tuple[int, ...] = (),
 ) -> dict[str, Any]:
     model = joblib.load(BytesIO(get_object(model_object_key)))
     preprocessor = joblib.load(BytesIO(get_object(preprocessor_object_key)))
-    clean_evaluation = pd.read_parquet(BytesIO(get_object(evaluation_object_key)))
-    return evaluate_model(
-        model, preprocessor, clean_evaluation, anomaly_rate, anomaly_seed, ks
+    labeled_evaluation = pd.read_parquet(
+        BytesIO(get_object(evaluation_object_key))
+    )
+    return evaluate_labeled_model(
+        model,
+        preprocessor,
+        labeled_evaluation,
+        ks,
     )
 
 
@@ -157,16 +159,12 @@ def main() -> None:
     parser.add_argument("--preprocessor-key", required=True)
     parser.add_argument("--evaluation-key", required=True)
     parser.add_argument("--version", required=True)
-    parser.add_argument("--anomaly-rate", type=float, default=0.05)
-    parser.add_argument("--anomaly-seed", type=int, default=42)
     parser.add_argument("--k", type=int, action="append", default=[100])
     args = parser.parse_args()
     report = evaluate_persisted_model(
         args.model_key,
         args.preprocessor_key,
         args.evaluation_key,
-        args.anomaly_rate,
-        args.anomaly_seed,
         tuple(sorted(set(args.k))),
     )
 
@@ -181,14 +179,11 @@ def main() -> None:
                 "admo_model_key": args.model_key,
                 "admo_preprocessor_key": args.preprocessor_key,
                 "admo_evaluation_dataset_key": args.evaluation_key,
-                "admo_evaluation_anomaly_seed": str(args.anomaly_seed),
                 "admo_score_direction": report["score_direction"],
             }
         )
         mlflow.log_params(
             {
-                "evaluation_anomaly_rate": args.anomaly_rate,
-                "evaluation_anomaly_seed": args.anomaly_seed,
                 "evaluation_rows": report["evaluation_rows"],
                 "evaluation_anomaly_count": report["anomaly_count"],
             }
