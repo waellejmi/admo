@@ -17,6 +17,7 @@ dependencies = [
 [project.scripts]
 admo-train = "processing_ml.training:main"
 admo-evaluate = "processing_ml.evaluation:main"
+admo-inject-anomalies = "processing_ml.anomaly_injection:main"
 
 [tool.uv.sources]
 admo-persistence = { workspace = true }

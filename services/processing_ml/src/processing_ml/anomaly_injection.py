@@ -1,9 +1,18 @@
+from __future__ import annotations
+
+import argparse
+import json
 from collections.abc import Mapping
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from admo_persistence import artifact_ref
+from admo_persistence.database import session_scope
+from admo_persistence.models import Artifact, Dataset
+from admo_persistence.registry import create_pipeline_run
+from sqlalchemy import select
 
+from .artifacts import publish_dataset, read_parquet_artifact
 from .features import BUILDING_SPLIT_COLUMNS, ENERGY_MIX_COLUMNS
 from .validation import validate_building_split, validate_energy_mix
 
@@ -75,16 +84,12 @@ def _choose_donor(
         if len(different_context):
             candidates = different_context
 
-    # Most candidate pools contain many valid donors. Sampling avoids scanning
-    # the full pool for every injected row.
     for _ in range(64):
         donor = int(rng.choice(candidates))
         donor_values = base.loc[donor, list(value_columns)].to_numpy(dtype=float)
         if not np.isclose(donor_values, target_values, equal_nan=True).all():
             return donor
 
-    # Keep deterministic failure behavior for degenerate datasets where the
-    # random attempts did not find a suitable donor.
     for donor in candidates:
         donor_values = base.loc[donor, list(value_columns)].to_numpy(dtype=float)
         if not np.isclose(donor_values, target_values, equal_nan=True).all():
@@ -466,20 +471,77 @@ def inject_anomalies(
 
 
 def create_experiment_dataset(
-    clean_path: str | Path,
-    experiment_path: str | Path,
+    clean_df: pd.DataFrame,
     anomaly_rate: float = 0.05,
     random_seed: int = 42,
     anomaly_type_distribution: Mapping[str, float] | None = None,
 ) -> pd.DataFrame:
-    clean_df = pd.read_parquet(clean_path)
     experiment_df = inject_anomalies(
         clean_df,
         anomaly_rate=anomaly_rate,
         random_seed=random_seed,
         anomaly_type_distribution=anomaly_type_distribution,
     )
-    output_path = Path(experiment_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    experiment_df.to_parquet(output_path, index=False)
     return experiment_df
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Create and register a labeled anomaly evaluation dataset."
+    )
+    parser.add_argument("--clean-key", required=True)
+    parser.add_argument("--evaluation-key", required=True)
+    parser.add_argument("--anomaly-rate", type=float, default=0.05)
+    parser.add_argument("--anomaly-seed", type=int, default=42)
+    parser.add_argument(
+        "--anomaly-distribution",
+        default=json.dumps(DEFAULT_ANOMALY_DISTRIBUTION),
+        help="JSON object mapping anomaly types to weights.",
+    )
+    args = parser.parse_args()
+    distribution = json.loads(args.anomaly_distribution)
+    if not isinstance(distribution, dict):
+        raise TypeError("--anomaly-distribution must be a JSON object.")
+
+    clean = read_parquet_artifact(
+        artifact_ref(args.clean_key, "application/vnd.apache.parquet")
+    )
+    experiment = create_experiment_dataset(
+        clean,
+        anomaly_rate=args.anomaly_rate,
+        random_seed=args.anomaly_seed,
+        anomaly_type_distribution=distribution,
+    )
+    with session_scope() as session:
+        source_dataset = session.scalar(
+            select(Dataset)
+            .join(Artifact, Dataset.artifact_id == Artifact.id)
+            .where(Artifact.object_key == args.clean_key)
+        )
+        if source_dataset is None:
+            raise LookupError(f"Clean dataset is not registered: {args.clean_key}")
+        run = create_pipeline_run(
+            session,
+            {
+                "component": "processing_ml",
+                "operation": "inject_anomalies",
+                "clean_object_key": args.clean_key,
+                "evaluation_object_key": args.evaluation_key,
+                "anomaly_rate": args.anomaly_rate,
+                "anomaly_seed": args.anomaly_seed,
+                "anomaly_distribution": distribution,
+            },
+        )
+        publish_dataset(
+            session,
+            run,
+            experiment,
+            args.evaluation_key,
+            "ademe_anomaly_evaluation",
+            source_dataset_id=source_dataset.id,
+        )
+        run.status = "completed"
+
+
+if __name__ == "__main__":
+    main()
