@@ -1,0 +1,14 @@
+.git
+.venv
+.pytest_cache
+__pycache__
+*.py[cod]
+.airflow
+data
+raw
+processed
+models
+reports
+*.parquet
+*.csv
+*.log
