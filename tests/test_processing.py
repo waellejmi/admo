@@ -1,11 +1,17 @@
 import numpy as np
 import pandas as pd
-from processing_ml.anomaly_injection import inject_anomalies
+import pytest
+from processing_ml.anomaly_injection import _allocate_counts, inject_anomalies
 from processing_ml.columns import (
     BUILDING_SPLIT_COLUMNS,
     ENERGY_MIX_COLUMNS,
 )
-from processing_ml.evaluation import calculate_metrics, precision_at_k, recall_at_k
+from processing_ml.evaluation import (
+    calculate_metrics,
+    evaluate_labeled_model,
+    precision_at_k,
+    recall_at_k,
+)
 from processing_ml.features import add_engineered_features, add_occupation_features
 from processing_ml.model_features import build_preprocessor
 
@@ -61,6 +67,31 @@ def test_anomaly_injection_is_reproducible_and_preserves_clean_input():
     assert first["source_row_id"].equals(clean["source_row_id"])
 
 
+def test_anomaly_distribution_uses_canonical_anomaly_type_names():
+    distribution = {
+        "contextual": 0.2,
+        "correlational": 0.25,
+        "structural": 0.2,
+        "energy_mix": 0.25,
+        "combination": 0.1,
+    }
+
+    counts = _allocate_counts(20, distribution)
+
+    assert counts == {
+        "contextual": 4,
+        "correlational": 5,
+        "structural": 4,
+        "energy_mix": 5,
+        "combination": 2,
+    }
+
+
+def test_anomaly_distribution_rejects_form_field_names():
+    with pytest.raises(ValueError, match="Unsupported anomaly types"):
+        _allocate_counts(20, {"contextual_weight": 1.0})
+
+
 def test_model_preprocessor_fits_explicit_feature_contract():
     frame = add_occupation_features(_clean_frame())
     transformed = build_preprocessor().fit_transform(frame)
@@ -77,3 +108,10 @@ def test_ranking_metrics_measure_top_k_alert_budget():
     metrics = calculate_metrics(y_true, scores, ks=(2,))
     assert metrics["pr_auc"] > 0.0
     assert metrics["precision_at_2"] == 1.0
+
+
+def test_evaluation_requires_ground_truth_labels():
+    clean = _clean_frame()
+
+    with pytest.raises(ValueError, match="missing labels"):
+        evaluate_labeled_model(object(), object(), clean)
