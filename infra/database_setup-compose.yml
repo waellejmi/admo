@@ -16,6 +16,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
   garage:
     image: dxflrs/garage:v2.3.0
     restart: unless-stopped
@@ -33,30 +34,12 @@ services:
       - ./garage.toml:/etc/garage.toml:ro
       - admo-garage-meta:/var/lib/garage/meta
       - admo-garage-data:/var/lib/garage/data
-  mlflow:
-    build:
-      context: ./mlflow
-    restart: unless-stopped
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri postgresql+psycopg://admo:admo123@postgres:5432/mlflow
-      --artifacts-destination s3://admo/mlflow
 
-    environment:
-      MLFLOW_S3_ENDPOINT_URL: http://garage:3900
-      AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:-GKADMOLOCAL}
-      AWS_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY:-admo_dev_secret_key_change_me}
-      AWS_DEFAULT_REGION: ${GARAGE_DEFAULT_REGION:-garage}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      garage:
-        condition: service_started
-    ports:
-      - "${MLFLOW_PORT:-5000}:5000"
 volumes:
   admo-postgres-data:
   admo-garage-meta:
   admo-garage-data:
+
+networks:
+  default:
+    name: ${ADMO_DOCKER_NETWORK:-admo_default}

@@ -1,0 +1,27 @@
+services:
+  airflow:
+    build:
+      context: ..
+      dockerfile: pipelines/airflow/Dockerfile
+    image: admo-airflow:dev
+    command: airflow standalone
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW_DATABASE_URL:-postgresql+psycopg://admo:admo123@postgres:5432/airflow}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/admo/pipelines/airflow/dags
+      ADMO_EXECUTION_BACKEND: ${ADMO_EXECUTION_BACKEND:-docker}
+      ADMO_DOCKER_NETWORK: ${ADMO_DOCKER_NETWORK:-admo_default}
+      ADMO_PROJECT_ROOT: /opt/admo
+      ADMO_PROJECT_HOST_PATH: ${ADMO_PROJECT_HOST_PATH:-/home/wael/Code/admo}
+    volumes:
+      - ..:/opt/admo
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${AIRFLOW_PORT:-8080}:8080"
+
+networks:
+  default:
+    name: ${ADMO_DOCKER_NETWORK:-admo_default}
