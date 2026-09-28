@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import os
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
 from airflow.exceptions import AirflowException
 from airflow.sdk import Variable, dag, task
+from lib.workload_launcher import Workload, run_workload
 
 ADEME_METADATA_URL = (
     "https://data.ademe.fr/data-fair/api/v1/datasets/operat03-ratio-conso-ajustee/"
@@ -61,22 +61,23 @@ def convert_to_parquet_and_store(metadata: dict[str, str], csv_path: str) -> str
     updated_at = metadata["updated_at"]
 
     object_key = f"raw/ademe/version={version}/source.parquet"
-    subprocess.run(
-        [
-            "uv",
-            "run",
-            "--package",
-            "ingestion",
-            "admo-ingest",
-            csv_path,
-            object_key,
-        ],
-        cwd=PROJECT_ROOT,
-        check=True,
-        env={
-            **os.environ,
-            "ADMO_ADEME_UPDATED_AT": updated_at or "",
-        },
+    run_workload(
+        Workload(
+            name=f"ingest-ademe-{version}",
+            image="admo-ingestion:dev",
+            command=(csv_path, object_key),
+            host_command=(
+                "uv",
+                "run",
+                "--package",
+                "ingestion",
+                "admo-ingest",
+                csv_path,
+                object_key,
+            ),
+            environment={"ADMO_ADEME_UPDATED_AT": updated_at or ""},
+            cwd=PROJECT_ROOT,
+        )
     )
     Variable.set(LAST_VERSION_VARIABLE, version)
     return object_key

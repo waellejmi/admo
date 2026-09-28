@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.hitl import HITLBranchOperator, HITLOperator
 from airflow.sdk import Param, dag, get_current_context, task
 from airflow.task.trigger_rule import TriggerRule
+from lib.workload_launcher import Workload, run_workload
 
 PROJECT_ROOT = Path(os.getenv("ADMO_PROJECT_ROOT", Path.cwd()))
 
@@ -22,27 +22,43 @@ def create_development_dataset() -> None:
     version = params["version"]
     raw_key = f"raw/ademe/version={version}/source.parquet"
     clean_key = f"processed/ademe/version={version}/clean_100k.parquet"
-    subprocess.run(
-        [
-            "uv",
-            "run",
-            "--package",
-            "processing-ml",
-            "python",
-            "-m",
-            "processing_ml.dev_dataset",
-            "--raw-key",
-            raw_key,
-            "--clean-key",
-            clean_key,
-            "--n-rows",
-            str(params["n_rows"]),
-            "--clean-seed",
-            str(params["clean_seed"]),
-        ],
-        cwd=PROJECT_ROOT,
-        check=True,
-        env=os.environ.copy(),
+    run_workload(
+        Workload(
+            name="create-development-dataset",
+            image="admo-processing-ml:dev",
+            command=(
+                "python",
+                "-m",
+                "processing_ml.dev_dataset",
+                "--raw-key",
+                raw_key,
+                "--clean-key",
+                clean_key,
+                "--n-rows",
+                str(params["n_rows"]),
+                "--clean-seed",
+                str(params["clean_seed"]),
+            ),
+            host_command=(
+                "uv",
+                "run",
+                "--package",
+                "processing-ml",
+                "python",
+                "-m",
+                "processing_ml.dev_dataset",
+                "--raw-key",
+                raw_key,
+                "--clean-key",
+                clean_key,
+                "--n-rows",
+                str(params["n_rows"]),
+                "--clean-seed",
+                str(params["clean_seed"]),
+            ),
+            environment={},
+            cwd=PROJECT_ROOT,
+        )
     )
 
 
@@ -83,11 +99,7 @@ def train_model(training_key: str) -> str:
     version = params["version"]
     model_key = f"models/isolation_forest/version={version}/model.joblib"
     preprocessor_key = f"models/isolation_forest/version={version}/preprocessor.joblib"
-    command = [
-        "uv",
-        "run",
-        "--package",
-        "processing-ml",
+    workload_command = (
         "admo-train",
         "--training-key",
         training_key,
@@ -97,8 +109,23 @@ def train_model(training_key: str) -> str:
         preprocessor_key,
         "--version",
         version,
-    ]
-    subprocess.run(command, cwd=PROJECT_ROOT, check=True, env=os.environ.copy())
+    )
+    run_workload(
+        Workload(
+            name=f"train-isolation-forest-{version}",
+            image="admo-processing-ml:dev",
+            command=workload_command,
+            host_command=(
+                "uv",
+                "run",
+                "--package",
+                "processing-ml",
+                *workload_command,
+            ),
+            environment={},
+            cwd=PROJECT_ROOT,
+        )
+    )
     return model_key
 
 

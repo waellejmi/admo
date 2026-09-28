@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from airflow.providers.standard.operators.hitl import (
 )
 from airflow.sdk import Param, dag, get_current_context, task
 from airflow.task.trigger_rule import TriggerRule
+from lib.workload_launcher import Workload, run_workload
 
 PROJECT_ROOT = Path(os.getenv("ADMO_PROJECT_ROOT", Path.cwd()))
 
@@ -40,27 +40,43 @@ def create_anomaly_evaluation_dataset(configuration: dict[str, object]) -> str:
     clean_key = params["clean_key"]
     evaluation_key = params["evaluation_key"]
     distribution = json.dumps(weights, sort_keys=True)
-    subprocess.run(
-        [
-            "uv",
-            "run",
-            "--package",
-            "processing-ml",
-            "admo-inject-anomalies",
-            "--clean-key",
-            clean_key,
-            "--evaluation-key",
-            evaluation_key,
-            "--anomaly-rate",
-            str(inputs["anomaly_rate"]),
-            "--anomaly-seed",
-            str(inputs["anomaly_seed"]),
-            "--anomaly-distribution",
-            distribution,
-        ],
-        cwd=PROJECT_ROOT,
-        check=True,
-        env=os.environ.copy(),
+    run_workload(
+        Workload(
+            name="inject-anomaly-evaluation-dataset",
+            image="admo-processing-ml:dev",
+            command=(
+                "admo-inject-anomalies",
+                "--clean-key",
+                clean_key,
+                "--evaluation-key",
+                evaluation_key,
+                "--anomaly-rate",
+                str(inputs["anomaly_rate"]),
+                "--anomaly-seed",
+                str(inputs["anomaly_seed"]),
+                "--anomaly-distribution",
+                distribution,
+            ),
+            host_command=(
+                "uv",
+                "run",
+                "--package",
+                "processing-ml",
+                "admo-inject-anomalies",
+                "--clean-key",
+                clean_key,
+                "--evaluation-key",
+                evaluation_key,
+                "--anomaly-rate",
+                str(inputs["anomaly_rate"]),
+                "--anomaly-seed",
+                str(inputs["anomaly_seed"]),
+                "--anomaly-distribution",
+                distribution,
+            ),
+            environment={},
+            cwd=PROJECT_ROOT,
+        )
     )
     return evaluation_key
 
@@ -103,13 +119,8 @@ def resolve_evaluation_dataset_key() -> str:
 def evaluate_persisted_model(evaluation_key: str) -> None:
     params = get_current_context()["params"]
     version = params["version"]
-    subprocess.run(
-        [
-            "uv",
-            "run",
-            "--package",
-            "processing-ml",
-            "admo-evaluate",
+    workload_command = (
+        "admo-evaluate",
             "--model-key",
             f"models/isolation_forest/version={version}/model.joblib",
             "--preprocessor-key",
@@ -120,10 +131,22 @@ def evaluate_persisted_model(evaluation_key: str) -> None:
             version,
             "--k",
             str(params["evaluation_k"]),
-        ],
-        cwd=PROJECT_ROOT,
-        check=True,
-        env=os.environ.copy(),
+    )
+    run_workload(
+        Workload(
+            name=f"evaluate-isolation-forest-{version}",
+            image="admo-processing-ml:dev",
+            command=workload_command,
+            host_command=(
+                "uv",
+                "run",
+                "--package",
+                "processing-ml",
+                *workload_command,
+            ),
+            environment={},
+            cwd=PROJECT_ROOT,
+        )
     )
 
 
