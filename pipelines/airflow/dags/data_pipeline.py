@@ -36,6 +36,7 @@ def detect_new_version(metadata: dict[str, str]) -> dict[str, str] | bool:
     current_version = metadata["version"]
     previous_version = Variable.get(
         LAST_VERSION_VARIABLE,
+        default="",
     )
     return metadata if current_version != previous_version else False
 
