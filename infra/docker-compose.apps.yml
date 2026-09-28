@@ -1,0 +1,69 @@
+services:
+  inference:
+    build:
+      context: ..
+      dockerfile: services/inference/Dockerfile
+    image: admo-inference:dev
+    restart: unless-stopped
+    environment:
+      ADMO_DATABASE_URL: ${ADMO_DATABASE_URL:-postgresql+psycopg://admo:admo123@postgres:5432/admo}
+      ADMO_OBJECT_STORAGE_ENDPOINT: ${ADMO_OBJECT_STORAGE_ENDPOINT:-http://garage:3900}
+      ADMO_OBJECT_STORAGE_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:-GKADMOLOCAL}
+      ADMO_OBJECT_STORAGE_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:-admo_dev_secret_key_change_me}
+      ADMO_OBJECT_STORAGE_BUCKET: ${ADMO_OBJECT_STORAGE_BUCKET:-admo}
+      ADMO_OBJECT_STORAGE_REGION: ${GARAGE_DEFAULT_REGION:-garage}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_started
+    ports:
+      - "${INFERENCE_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  ingestion:
+    profiles: ["jobs"]
+    build:
+      context: ..
+      dockerfile: services/ingestion/Dockerfile
+    image: admo-ingestion:dev
+    environment:
+      ADMO_DATABASE_URL: ${ADMO_DATABASE_URL:-postgresql+psycopg://admo:admo123@postgres:5432/admo}
+      ADMO_OBJECT_STORAGE_ENDPOINT: ${ADMO_OBJECT_STORAGE_ENDPOINT:-http://garage:3900}
+      ADMO_OBJECT_STORAGE_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:-GKADMOLOCAL}
+      ADMO_OBJECT_STORAGE_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:-admo_dev_secret_key_change_me}
+      ADMO_OBJECT_STORAGE_BUCKET: ${ADMO_OBJECT_STORAGE_BUCKET:-admo}
+      ADMO_OBJECT_STORAGE_REGION: ${GARAGE_DEFAULT_REGION:-garage}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_started
+  processing-ml:
+    profiles: ["jobs"]
+    build:
+      context: ..
+      dockerfile: services/processing_ml/Dockerfile
+    image: admo-processing-ml:dev
+    environment:
+      ADMO_DATABASE_URL: ${ADMO_DATABASE_URL:-postgresql+psycopg://admo:admo123@postgres:5432/admo}
+      ADMO_OBJECT_STORAGE_ENDPOINT: ${ADMO_OBJECT_STORAGE_ENDPOINT:-http://garage:3900}
+      ADMO_OBJECT_STORAGE_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:-GKADMOLOCAL}
+      ADMO_OBJECT_STORAGE_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:-admo_dev_secret_key_change_me}
+      ADMO_OBJECT_STORAGE_BUCKET: ${ADMO_OBJECT_STORAGE_BUCKET:-admo}
+      ADMO_OBJECT_STORAGE_REGION: ${GARAGE_DEFAULT_REGION:-garage}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL:-http://garage:3900}
+      AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:-GKADMOLOCAL}
+      AWS_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY:-admo_dev_secret_key_change_me}
+      AWS_DEFAULT_REGION: ${GARAGE_DEFAULT_REGION:-garage}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_started
+      mlflow:
+        condition: service_started
