@@ -13,7 +13,8 @@ from airflow.providers.standard.operators.hitl import (
 from airflow.sdk import Param, dag, get_current_context, task
 from airflow.task.trigger_rule import TriggerRule
 
-from .lib.workload_launcher import Workload, run_workload
+# pyrefly: ignore [missing-import]
+from lib.workload_launcher import Workload, run_workload
 
 PROJECT_ROOT = Path(os.getenv("ADMO_PROJECT_ROOT", Path.cwd()))
 

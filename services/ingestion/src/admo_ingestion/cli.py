@@ -1,7 +1,8 @@
 import argparse
 import os
-from pathlib import Path
+from io import BytesIO
 
+import pyarrow.parquet as pq
 from admo_persistence import get_object
 from admo_persistence.database import session_scope
 from admo_persistence.registry import (
@@ -15,14 +16,14 @@ from .pipeline import ingest_csv_to_garage
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Upload a raw Parquet snapshot to Garage."
+        description="Convert a raw CSV object in Garage into a Parquet snapshot."
     )
-    parser.add_argument("csv_path", type=Path)
+    parser.add_argument("source_key")
     parser.add_argument("object_key")
     parser.add_argument("--separator", default=";")
     args = parser.parse_args()
     artifact_ref = ingest_csv_to_garage(
-        args.csv_path,
+        args.source_key,
         args.object_key,
         sep=args.separator,
     )
@@ -34,7 +35,7 @@ def main() -> None:
             {
                 "component": "ingestion",
                 "operation": "ingest",
-                "source": str(args.csv_path),
+                "source": args.source_key,
                 "object_key": args.object_key,
                 "version": version,
                 "updated_at": os.getenv("ADMO_ADEME_UPDATED_AT"),
@@ -56,7 +57,7 @@ def main() -> None:
             session,
             artifact,
             name="ademe_raw",
-            row_count=_count_rows(args.csv_path),
+            row_count=_count_rows(body),
         )
         run.status = "completed"
 
@@ -71,6 +72,5 @@ def _extract_version(object_key: str) -> str:
     return object_key.split(marker, 1)[1].split("/", 1)[0]
 
 
-def _count_rows(csv_path: Path) -> int:
-    with csv_path.open("rb") as source:
-        return max(0, sum(1 for _ in source) - 1)
+def _count_rows(body: bytes) -> int:
+    return pq.read_metadata(BytesIO(body)).num_rows

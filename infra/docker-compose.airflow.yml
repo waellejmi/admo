@@ -10,24 +10,33 @@ services:
       AIRFLOW_CONFIG: /opt/airflow/airflow.cfg
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW_DATABASE_URL:-postgresql+psycopg://admo:admo123@postgres:5432/airflow}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?Set AIRFLOW_JWT_SECRET to a stable secret}
+      AIRFLOW__API_AUTH__JWT_SECRET: ${ARFLOW_JWT_SECRET:-admo123}
       AIRFLOW__CORE__DAGS_FOLDER: /opt/admo/pipelines/airflow/dags
-      ADMO_EXECUTION_BACKEND: ${ADMO_EXECUTION_BACKEND:-docker}
+      ADMO_EXECUTION_BACKEND: ${ADMO_EXECUTION_BACKEND:-host}
       ADMO_DOCKER_NETWORK: ${ADMO_DOCKER_NETWORK:-admo_default}
       ADMO_PROJECT_ROOT: /opt/admo
       ADMO_PROJECT_HOST_PATH: ${ADMO_PROJECT_HOST_PATH:-/home/wael/Code/admo}
+      ADMO_DATABASE_URL: ${ADMO_DATABASE_URL:-postgresql+psycopg://admo:admo123@postgres:5432/admo}
+      ADMO_OBJECT_STORAGE_ENDPOINT: ${ADMO_OBJECT_STORAGE_ENDPOINT:-http://garage:3900}
+      ADMO_OBJECT_STORAGE_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:-GKADMOLOCAL}
+      ADMO_OBJECT_STORAGE_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:-admo_dev_secret_key_change_me}
+      ADMO_OBJECT_STORAGE_BUCKET: ${ADMO_OBJECT_STORAGE_BUCKET:-admo}
+      ADMO_OBJECT_STORAGE_REGION: ${GARAGE_DEFAULT_REGION:-garage}
     volumes:
       - ../.airflow/airflow.cfg:/opt/airflow/airflow.cfg:ro
-      - ../.airflow/logs:/opt/airflow/logs
       - ../.airflow/simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated
       - ..:/opt/admo:ro
       - ../data/raw:/opt/admo/data/raw
-      - /var/run/docker.sock:/var/run/docker.sock
+      - airflow_logs:/opt/airflow/logs
     depends_on:
       postgres:
         condition: service_healthy
+      garage:
+        condition: service_started
     ports:
       - "${AIRFLOW_PORT:-8080}:8080"
+volumes:
+  airflow_logs:
 networks:
   default:
     name: ${ADMO_DOCKER_NETWORK:-admo_default}

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
+from admo_persistence import put_file
 from airflow.exceptions import AirflowException
 from airflow.sdk import Variable, dag, task
 
@@ -19,7 +21,10 @@ ADEME_RAW_URL = (
 )
 LAST_VERSION_VARIABLE = "admo_last_ademe_version"
 PROJECT_ROOT = Path(os.getenv("ADMO_PROJECT_ROOT", Path.cwd()))
-RAW_CSV_PATH = PROJECT_ROOT / "data/raw/OPERAT03_RATIO_CONSO_AJUSTEE.csv"
+
+
+def raw_source_key(version: str) -> str:
+    return f"raw/ademe/version={version}/source.csv"
 
 
 @task(task_id="check_ademe_metadata")
@@ -43,24 +48,25 @@ def detect_new_version(metadata: dict[str, str]) -> dict[str, str] | bool:
     return metadata if current_version != previous_version else False
 
 
-# TODO: Deal with docker permsiion to allow the continair to download  data with airflow user
 @task(task_id="download_raw")
 def download_raw(metadata: dict[str, str]) -> str:
     version = metadata["version"]
     if not version:
         raise AirflowException("No dataset version available for raw download.")
-    RAW_CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    source_key = raw_source_key(version)
     with requests.get(ADEME_RAW_URL, stream=True, timeout=(60, 600)) as response:
         response.raise_for_status()
-        with RAW_CSV_PATH.open("wb") as output:
+        with tempfile.NamedTemporaryFile(suffix=".csv") as staging:
             for chunk in response.iter_content(chunk_size=1024 * 1024):
                 if chunk:
-                    output.write(chunk)
-    return str(RAW_CSV_PATH)
+                    staging.write(chunk)
+            staging.flush()
+            put_file(staging.name, source_key, "text/csv")
+    return source_key
 
 
 @task(task_id="convert_to_parquet_and_store")
-def convert_to_parquet_and_store(metadata: dict[str, str], csv_path: str) -> str:
+def convert_to_parquet_and_store(metadata: dict[str, str], source_key: str) -> str:
     version = metadata["version"]
     updated_at = metadata["updated_at"]
 
@@ -69,18 +75,21 @@ def convert_to_parquet_and_store(metadata: dict[str, str], csv_path: str) -> str
         Workload(
             name=f"ingest-ademe-{version}",
             image="admo-ingestion:dev",
-            command=(csv_path, object_key),
+            command=(source_key, object_key),
             host_command=(
                 "uv",
                 "run",
                 "--package",
                 "ingestion",
                 "admo-ingest",
-                csv_path,
+                source_key,
                 object_key,
             ),
-            environment={"ADMO_ADEME_UPDATED_AT": updated_at or ""},
-            cwd=PROJECT_ROOT,
+            environment={
+                "ADMO_ADEME_UPDATED_AT": updated_at or "",
+                "UV_PROJECT_ENVIRONMENT": "/tmp/.venv",
+            },
+            cwd="/opt/admo",
         )
     )
     Variable.set(LAST_VERSION_VARIABLE, version)
@@ -104,8 +113,8 @@ def convert_to_parquet_and_store(metadata: dict[str, str], csv_path: str) -> str
 def data_pipeline():
     metadata = check_ademe_metadata()
     new_metadata = detect_new_version(metadata)
-    csv_path = download_raw(new_metadata)
-    convert_to_parquet_and_store(new_metadata, csv_path)
+    source_key = download_raw(new_metadata)
+    convert_to_parquet_and_store(new_metadata, source_key)
 
 
 dag = data_pipeline()
