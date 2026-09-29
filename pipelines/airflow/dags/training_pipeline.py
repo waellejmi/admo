@@ -11,6 +11,8 @@ from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.hitl import HITLBranchOperator, HITLOperator
 from airflow.sdk import Param, dag, get_current_context, task
 from airflow.task.trigger_rule import TriggerRule
+
+# pyrefly: ignore [missing-import]
 from lib.workload_launcher import Workload, run_workload
 
 PROJECT_ROOT = Path(os.getenv("ADMO_PROJECT_ROOT", Path.cwd()))
@@ -22,40 +24,23 @@ def create_development_dataset() -> None:
     version = params["version"]
     raw_key = f"raw/ademe/version={version}/source.parquet"
     clean_key = f"processed/ademe/version={version}/clean_100k.parquet"
+    workload_command = (
+        "admo-create-subdataset",
+        "--raw-key",
+        raw_key,
+        "--clean-key",
+        clean_key,
+        "--n-rows",
+        str(params["n_rows"]),
+        "--clean-seed",
+        str(params["clean_seed"]),
+    )
     run_workload(
         Workload(
             name="create-development-dataset",
             image="admo-processing-ml:dev",
-            command=(
-                "python",
-                "-m",
-                "processing_ml.dev_dataset",
-                "--raw-key",
-                raw_key,
-                "--clean-key",
-                clean_key,
-                "--n-rows",
-                str(params["n_rows"]),
-                "--clean-seed",
-                str(params["clean_seed"]),
-            ),
-            host_command=(
-                "uv",
-                "run",
-                "--package",
-                "processing-ml",
-                "python",
-                "-m",
-                "processing_ml.dev_dataset",
-                "--raw-key",
-                raw_key,
-                "--clean-key",
-                clean_key,
-                "--n-rows",
-                str(params["n_rows"]),
-                "--clean-seed",
-                str(params["clean_seed"]),
-            ),
+            command=workload_command,
+            host_command=("uv", "run", "--package", "processing-ml", *workload_command),
             environment={},
             cwd=PROJECT_ROOT,
         )

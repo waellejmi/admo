@@ -21,6 +21,7 @@ services:
       - ../.airflow/logs:/opt/airflow/logs
       - ../.airflow/simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated
       - ..:/opt/admo:ro
+      - ../data/raw:/opt/admo/data/raw
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:

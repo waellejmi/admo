@@ -12,7 +12,8 @@ from airflow.providers.standard.operators.hitl import (
 )
 from airflow.sdk import Param, dag, get_current_context, task
 from airflow.task.trigger_rule import TriggerRule
-from lib.workload_launcher import Workload, run_workload
+
+from .lib.workload_launcher import Workload, run_workload
 
 PROJECT_ROOT = Path(os.getenv("ADMO_PROJECT_ROOT", Path.cwd()))
 
@@ -121,16 +122,16 @@ def evaluate_persisted_model(evaluation_key: str) -> None:
     version = params["version"]
     workload_command = (
         "admo-evaluate",
-            "--model-key",
-            f"models/isolation_forest/version={version}/model.joblib",
-            "--preprocessor-key",
-            f"models/isolation_forest/version={version}/preprocessor.joblib",
-            "--evaluation-key",
-            evaluation_key,
-            "--version",
-            version,
-            "--k",
-            str(params["evaluation_k"]),
+        "--model-key",
+        f"models/isolation_forest/version={version}/model.joblib",
+        "--preprocessor-key",
+        f"models/isolation_forest/version={version}/preprocessor.joblib",
+        "--evaluation-key",
+        evaluation_key,
+        "--version",
+        version,
+        "--k",
+        str(params["evaluation_k"]),
     )
     run_workload(
         Workload(

@@ -67,7 +67,6 @@ services:
         condition: service_started
       mlflow:
         condition: service_started
-
 networks:
   default:
     name: ${ADMO_DOCKER_NETWORK:-admo_default}

@@ -4,11 +4,8 @@ services:
       context: ./mlflow
     restart: unless-stopped
     command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri postgresql+psycopg://admo:admo123@postgres:5432/mlflow
-      --artifacts-destination s3://admo/mlflow
+      mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri postgresql+psycopg://admo:admo123@postgres:5432/mlflow --artifacts-destination s3://admo/mlflow
+
     environment:
       MLFLOW_S3_ENDPOINT_URL: http://garage:3900
       AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:-GKADMOLOCAL}
@@ -21,7 +18,6 @@ services:
         condition: service_started
     ports:
       - "${MLFLOW_PORT:-5000}:5000"
-
 networks:
   default:
     name: ${ADMO_DOCKER_NETWORK:-admo_default}

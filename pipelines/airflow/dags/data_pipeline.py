@@ -7,6 +7,8 @@ from pathlib import Path
 import requests
 from airflow.exceptions import AirflowException
 from airflow.sdk import Variable, dag, task
+
+# pyrefly: ignore [missing-import]
 from lib.workload_launcher import Workload, run_workload
 
 ADEME_METADATA_URL = (
@@ -41,6 +43,7 @@ def detect_new_version(metadata: dict[str, str]) -> dict[str, str] | bool:
     return metadata if current_version != previous_version else False
 
 
+# TODO: Deal with docker permsiion to allow the continair to download  data with airflow user
 @task(task_id="download_raw")
 def download_raw(metadata: dict[str, str]) -> str:
     version = metadata["version"]
