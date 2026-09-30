@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: garage
+  namespace: admo
+spec:
+  serviceName: "garage"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: garage
+  template:
+    metadata:
+      labels:
+        app: garage
+    spec:
+      containers:
+        - name: garage
+          image: dxflrs/garage:v2.3.0
+          args: ["/garage", "server", "--single-node", "--default-bucket"]
+          env:
+            - name: GARAGE_DEFAULT_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_ACCESS_KEY
+            - name: GARAGE_DEFAULT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_SECRET_KEY
+            - name: GARAGE_DEFAULT_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_BUCKET
+            - name: GARAGE_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_REGION
+            - name: GARAGE_RPC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_RPC_SECRET
+          ports:
+            - containerPort: 3900
+              name: s3-api
+            - containerPort: 3901
+              name: s3-rpc
+            - containerPort: 3902
+              name: s3-web
+            - containerPort: 3903
+              name: s3-admin
+          volumeMounts:
+            - name: garage-config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+              readOnly: true
+            - name: garage-data
+              mountPath: /var/lib/garage
+      volumes:
+        - name: garage-config
+          configMap:
+            name: garage-config
+            items:
+              - key: garage.toml
+                path: garage.toml
+  volumeClaimTemplates:
+    - metadata:
+        name: garage-data
+        annotations:
+          volume.beta.kubernetes.io/storage-class: "standard"
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage
+  namespace: admo
+spec:
+  ports:
+    - port: 3900
+      targetPort: 3900
+      name: s3-api
+    - port: 3901
+      targetPort: 3901
+      name: s3-rpc
+    - port: 3902
+      targetPort: 3902
+      name: s3-web
+    - port: 3903
+      targetPort: 3903
+      name: s3-admin
+  clusterIP: None
+  selector:
+    app: garage

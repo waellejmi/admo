@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-sql
+  namespace: admo
+data:
+  01-create-databases.sql: |-
+    CREATE DATABASE mlflow;
+    CREATE DATABASE airflow;
+

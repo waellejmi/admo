@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-config
+  namespace: admo
+data:
+  airflow.cfg: |
+    [core]
+    dags_folder = /opt/admo/pipelines/airflow/dags
+    hostname_callable = airflow.utils.net.getfqdn
+    might_contain_dag_callable = airflow.utils.file.might_contain_dag_via_default_heuristic
+    default_timezone = utc
+    executor = LocalExecutor
+    fernet_key = 98K1iv97_uFCPHXQ3HXqooMR0vDrxkCAXhhN3U0jEL4=
+    dagbag_import_timeout = 30.0
+    dagbag_import_error_tracebacks = True
+    dagbag_import_error_traceback_depth = 2
+    default_task_execution_timeout =
+    min_serialized_dag_update_interval = 30
+    compress_serialized_dags = False
+    num_dag_runs_to_retain_rendered_fields = 30
+    xcom_backend = airflow.sdk.execution_time.xcom.BaseXCom
+    lazy_load_plugins = True
+    lazy_discover_providers = True
+    hide_sensitive_var_conn_fields = True
+    sensitive_var_conn_names =
+    default_pool_task_slot_count = 128
+    max_map_length = 1024
+    allow_double_dot_in_ids = False
+    daemon_umask = 0o077
+    asset_manager_class =
+    asset_manager_kwargs =
+    test_connection = Disabled
+    max_templated_field_length = 4096
+    execution_api_server_url =
+    multi_team = False
+    team_name_cache_ttl = 30
+    rerun_with_latest_version =
+    [database]
+    sql_alchemy_conn =
+    sql_alchemy_conn_async =
+    sql_alchemy_engine_args =
+    sql_engine_encoding = utf-8
+    sql_engine_collation_for_ids =
+    sql_alchemy_pool_enabled = True
+    sql_alchemy_pool_size = 5
+    sql_alchemy_max_overflow = 10
+    sql_alchemy_pool_recycle = 1800
+    sql_alchemy_pool_pre_ping = True
+    sql_alchemy_schema =
+    sql_alchemy_connect_args =
+    sql_alchemy_connect_args_async =
+    sql_alchemy_session_maker =
+    max_db_retries = 3
+    check_migrations = True
+    external_db_managers =
+    migration_batch_size = 10000
+    [logging]
+    base_log_folder = /opt/airflow/logs
+    remote_logging = False
+    remote_log_conn_id =
+    delete_local_logs = False
+    google_key_path =
+    remote_base_log_folder =
+    remote_task_handler_kwargs =
+    encrypt_s3_logs = False
+    logging_level = INFO
+    namespace_levels =
+    celery_logging_level =
+    fab_logging_level = WARNING
+    json_logs = False
+    uvicorn_logging_level = INFO
+    logging_config_class =
+    colored_console_log = True
+    log_format =
+    callsite_parameters = filename,lineno
+    simple_log_format = %%(asctime)s %%(levelname)s - %%(message)s
+    dag_processor_log_target = file
+    dag_processor_log_format = [%%(asctime)s] [SOURCE:DAG_PROCESSOR] {%%(filename)s:%%(lineno)d} %%(levelname)s - %%(message)s
+    dag_processor_child_process_log_directory = /opt/airflow/logs/dag_processor
+    log_formatter_class = airflow.utils.log.timezone_aware.TimezoneAware
+    log_timestamp_format = iso
+    secret_mask_adapter =
+    min_length_masked_secret = 5
+    task_log_prefix_template =
+    log_filename_template = dag_id={{ ti.dag_id }}/run_id={{ ti.run_id }}/task_id={{ ti.task_id }}/{%% if ti.map_index >= 0 %%}map_index={{ ti.map_index }}/{%% endif %%}attempt={{ try_number|default(ti.try_number) }}.log
+    task_log_reader = task
+    extra_logger_names =
+    worker_log_server_port = 8793
+    trigger_log_server_port = 8794
+    file_task_handler_new_folder_permissions = 0o775
+    file_task_handler_new_file_permissions = 0o664
+    celery_stdout_stderr_separation = False
+    color_log_error_keywords = error,exception
+    color_log_warning_keywords = warn
+    [metrics]
+    metrics_allow_list =
+    metrics_block_list =
+    legacy_names_on = True
+    statsd_on = False
+    statsd_host = localhost
+    statsd_ipv6 = False
+    statsd_port = 8125
+    statsd_prefix = airflow
+    stat_name_handler =
+    statsd_datadog_enabled = False
+    statsd_datadog_tags =
+    statsd_datadog_metrics_tags = True
+    statsd_disabled_tags = job_id,run_id
+    statsd_influxdb_enabled = False
+    otel_on = False
+    otel_host =
+    otel_port =
+    otel_prefix = airflow
+    otel_interval_milliseconds =
+    otel_debugging_on =
+    otel_service =
+    otel_debug_traces_on =
+    task_runner_flush_timeout_milliseconds = 30000
+    [secrets]
+    backend =
+    backend_kwargs =
+    use_cache = False
+    cache_ttl_seconds = 900
+    [api]
+    instance_name = admo-airflow

@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow
+  namespace: admo
+  labels:
+    app: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airflow
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      serviceAccountName: airflow
+      containers:
+        - name: airflow
+          image: admo-airflow:dev
+          command: ["airflow", "standalone"]
+          env:
+            - name: AIRFLOW_HOME
+              value: "/opt/airflow"
+            - name: AIRFLOW_CONFIG
+              value: "/opt/airflow/airflow.cfg"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-creds
+                  key: AIRFLOW_DATABASE_URI
+            - name: AIRFLOW__CORE__LOAD_EXAMPLES
+              value: "false"
+            - name: AIRFLOW__API_AUTH__JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-creds
+                  key: AIRFLOW_JWT_SECRET
+            - name: AIRFLOW__CORE__DAGS_FOLDER
+              value: "/opt/admo/pipelines/airflow/dags"
+            - name: ADMO_EXECUTION_BACKEND
+              value: "host"
+            - name: ADMO_DOCKER_NETWORK
+              value: "admo_default"
+            - name: ADMO_PROJECT_ROOT
+              value: "/opt/admo"
+            - name: ADMO_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-creds
+                  key: ADMO_DATABASE_URI
+            - name: ADMO_OBJECT_STORAGE_ENDPOINT
+              value: "http://garage:3900"
+            - name: ADMO_OBJECT_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_ACCESS_KEY
+            - name: ADMO_OBJECT_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_SECRET_KEY
+            - name: ADMO_OBJECT_STORAGE_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_BUCKET
+            - name: ADMO_OBJECT_STORAGE_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_REGION
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /api/v2/monitor/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v2/monitor/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - name: airflow-logs
+              mountPath: /opt/airflow/logs
+            - name: airflow-dags
+              mountPath: /opt/admo/pipelines/airflow/dags
+            - name: airflow-plugins
+              mountPath: /opt/airflow/plugins
+            - name: airflow-config
+              mountPath: /opt/airflow/airflow.cfg
+              subPath: airflow.cfg
+      volumes:
+        - name: airflow-logs
+          emptyDir: {}
+        - name: airflow-dags
+          emptyDir: {}
+        - name: airflow-plugins
+          emptyDir: {}
+        - name: airflow-config
+          configMap:
+            name: airflow-config
+            items:
+              - key: airflow.cfg
+                path: airflow.cfg

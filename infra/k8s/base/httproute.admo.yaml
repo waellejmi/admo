@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: airflow-route
+  namespace: admo
+spec:
+  parentRefs:
+    - name: admo-gateway
+      namespace: admo
+  hostnames:
+    - "airflow.admo.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: airflow
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inference-route
+  namespace: admo
+spec:
+  parentRefs:
+    - name: admo-gateway
+      namespace: admo
+  hostnames:
+    - "api.admo.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: inference
+          port: 8000

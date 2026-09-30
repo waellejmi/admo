@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  namespace: admo
+  labels:
+    app: mlflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+        - name: mlflow
+          image: admo-mlflow:dev
+          command:
+            - sh
+            - -c
+            - mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri $MLFLOW_DATABASE_URI --artifacts-destination s3://admo/mlflow
+          env:
+            - name: MLFLOW_S3_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: GARAGE_DEFAULT_ACCESS_KEY
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: garage-creds
+                  key: AWS_DEFAULT_REGION
+            - name: MLFLOW_DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mlflow-creds
+                  key: MLFLOW_DATABASE_URI
+          ports:
+            - containerPort: 5000
+              name: http
